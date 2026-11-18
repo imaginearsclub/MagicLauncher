@@ -1,0 +1,12 @@
+allowBuilds:
+  '@sentry/cli': true
+  esbuild: true
+
+minimumReleaseAgeExclude:
+  - '@sentry/browser-utils@11.14.0'
+  - '@sentry/browser@11.14.0'
+  - '@sentry/core@11.14.0'
+  - '@sentry/feedback@11.14.0'
+  - '@sentry/replay-canvas@11.14.0'
+  - '@sentry/replay@11.14.0'
+  - '@sentry/svelte@11.14.0'
