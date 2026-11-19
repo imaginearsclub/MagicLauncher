@@ -12,3 +12,8 @@ minimumReleaseAgeExclude:
   - '@sentry/replay-canvas@11.14.0'
   - '@sentry/replay@11.14.0'
   - '@sentry/svelte@11.14.0'
+
+# Security: minimatch < 11.0.1 (GHSA-g3hv-75wg-m249) via webdriverio > archiver > readdir-glob@3
+# (dev/e2e only). Drop once archiver depends on readdir-glob 4.
+overrides:
+  "readdir-glob>minimatch": "^11.0.1"
