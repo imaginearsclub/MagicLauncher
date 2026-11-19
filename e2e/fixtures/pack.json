@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "id": "imaginears-magic-pack",
+  "name": "Imaginears Club (test)",
+  "version": "9.9.9",
+  "minecraft": "1.21.11",
+  "loader": { "type": "fabric", "version": "0.20.1" },
+  "recommended_memory_mb": 6144,
+  "files": [],
+  "features": [
+    { "id": "shaders", "name": "Shaders", "description": "Iris and the shader packs." },
+    { "id": "dynamic_lights", "name": "Dynamic lights", "description": "Held torches light up the area." },
+    { "id": "sound_physics", "name": "Sound physics", "description": "Echo and muffled sound." },
+    { "id": "bobby", "name": "Bobby", "description": "Keeps far chunks for a longer view distance." }
+  ],
+  "presets": [
+    { "id": "high", "name": "High-end PC", "disable": [] },
+    { "id": "low", "name": "Low-end PC", "disable": ["shaders", "dynamic_lights", "bobby"] }
+  ]
+}

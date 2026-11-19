@@ -11,3 +11,5 @@
 .vscode/
 *.log
 e2e/artifacts/
+/src-tauri/icons/android
+/src-tauri/icons/ios

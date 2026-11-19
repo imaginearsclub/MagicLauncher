@@ -1,5 +1,5 @@
 {
-  "name": "MagicLauncher",
+  "name": "magiclauncher",
   "private": true,
   "packageManager": "pnpm@12.5.1",
   "type": "module",
@@ -8,7 +8,9 @@
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "tauri": "tauri",
-    "build:release": "node scripts/build-release-frontend.mjs"
+    "build:release": "node scripts/build-release-frontend.mjs",
+    "publisher": "node scripts/publisher-tauri.mjs",
+    "e2e": "node --test --test-concurrency=1 e2e/*.test.mjs"
   },
   "dependencies": {
     "@sentry/svelte": "11.14.0",
@@ -22,6 +24,7 @@
     "svelte": "^5",
     "svelte-check": "^4",
     "typescript": "^6.0.3",
-    "vite": "^8.3.8"
+    "vite": "^8.3.8",
+    "webdriverio": "10.2.0"
   }
 }

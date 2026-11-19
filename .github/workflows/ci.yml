@@ -1,0 +1,168 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+# Windows/macOS run on our own machines when the repo variables RUNNER_WINDOWS / RUNNER_MAC
+# are set (JSON label lists, e.g. ["self-hosted","magic-mac"]); otherwise on GitHub's.
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Linux
+            runner: '"ubuntu-22.04"'
+          - label: Windows
+            runner: ${{ vars.RUNNER_WINDOWS || '"windows-latest"' }}
+          - label: macOS
+            runner: ${{ vars.RUNNER_MAC || '"macos-latest"' }}
+    # Tags only run e2e (the release workflow already builds that commit on these machines).
+    if: github.ref_type != 'tag'
+    name: check (${{ matrix.label }})
+    runs-on: ${{ fromJSON(matrix.runner) }}
+    steps:
+      # Our own machines keep target/ between runs; GitHub's start clean and use rust-cache.
+      - uses: actions/checkout@v7
+        with:
+          clean: ${{ runner.environment == 'github-hosted' }}
+
+      # Self-hosted Windows: make `bash` Git's bash, not System32\bash.exe (the WSL stub).
+      - name: Prefer Git Bash
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: echo %ProgramFiles%\Git\bin>>"%GITHUB_PATH%"
+
+      # Self-hosted runners keep target/ between runs; if that leaves the disk short, start
+      # clean rather than fail mid-build ("No space left on device").
+      - name: Free disk space if low
+        if: runner.environment == 'self-hosted'
+        shell: bash
+        run: |
+          free_gb=$(df -Pk . | awk 'NR==2 {print int($4/1048576)}')
+          echo "Free disk: ${free_gb} GB"
+          if [ "$free_gb" -lt 20 ]; then
+            echo "::warning::Less than 20 GB free on this runner; deleting target/ before building"
+            rm -rf target
+            df -Pk . | awk 'NR==2 {print "Free after clean: " int($4/1048576) " GB"}'
+          fi
+
+      - name: Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev pkg-config
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      # Only on GitHub's runners (uploading it from ours saturated the home connection).
+      - uses: Swatinem/rust-cache@v2
+        if: runner.environment == 'github-hosted'
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm build
+
+      - run: cargo fmt --all --check
+        if: runner.os == 'Linux'
+      - name: Release/allowlist script tests
+        if: runner.os == 'Linux'
+        run: python3 -I -m unittest discover -s scripts -p "test_*.py" -v
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+  # MagicLauncher is its own project: no IDs, hosts, keys or names from the launcher it was
+  # ported from may come back. Patterns live in scripts/separation-patterns.txt.
+  separation:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: No leftovers from the reference launcher
+        run: |
+          if git grep -n -i -E -f scripts/separation-patterns.txt -- . ':!scripts/separation-patterns.txt'; then
+            echo "Found names/IDs from another project (see above)." >&2
+            exit 1
+          fi
+
+  # WebDriver smoke tests of the real app (e2e/). tauri-driver supports Windows and Linux only.
+  # Linux only for now. Windows is parked: on windows-latest the session
+  # fails with "DevToolsActivePort file doesn't exist" (cause not found yet), while
+  # `pnpm e2e` passes on a desktop PC, so run it locally before releases (docs/releasing.md).
+  # The Windows steps below stay so it can come back by adding "windows-latest" here.
+  e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-22.04"]
+    name: e2e (${{ startsWith(matrix.os, 'windows') && 'Windows' || 'Linux' }})
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          clean: ${{ runner.environment == 'github-hosted' }}
+      - name: Prefer Git Bash
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: echo %ProgramFiles%\Git\bin>>"%GITHUB_PATH%"
+
+      - name: Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+            libdbus-1-dev pkg-config webkit2gtk-driver xvfb
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        if: runner.environment == 'github-hosted'
+      - name: Install tauri-driver
+        shell: bash
+        run: command -v tauri-driver || cargo install tauri-driver --locked
+
+      # msedgedriver must match the WebView2 runtime exactly (not the Edge browser).
+      - name: msedgedriver for this WebView2
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $key = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          $v = (Get-ItemProperty $key).pv
+          Write-Host "WebView2 $v"
+          $dir = Join-Path $env:RUNNER_TEMP "edgedriver-$v"
+          if (-not (Test-Path "$dir\msedgedriver.exe")) {
+            Invoke-WebRequest "https://msedgedriver.microsoft.com/$v/edgedriver_win64.zip" -OutFile "$dir.zip"
+            Expand-Archive "$dir.zip" -DestinationPath $dir -Force
+          }
+          Add-Content $env:GITHUB_PATH $dir
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
+      - run: pnpm install --frozen-lockfile
+      # A debug build with the frontend embedded (a plain cargo build would load the dev server).
+      - run: pnpm tauri build --debug --no-bundle
+
+      - name: Smoke tests (Linux, virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a -s "-screen 0 1280x800x24" pnpm e2e
+      - name: Smoke tests (Windows)
+        if: runner.os == 'Windows'
+        run: pnpm e2e
+      - name: Failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-${{ runner.os }}
+          path: e2e/artifacts/
+          if-no-files-found: ignore
