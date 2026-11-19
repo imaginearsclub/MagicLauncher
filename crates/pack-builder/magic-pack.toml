@@ -1,0 +1,50 @@
+# Optional parts of the Imaginears Magic Pack and the presets that switch them off.
+#
+# Built into pack-publisher. To change it without a new exe, put an edited copy named
+# `magic-pack.toml` in the root of the pack instance (Prism/Modrinth or CurseForge);
+# that copy wins.
+#
+# Only CLIENT-SIDE mods may be optional. The Imaginears server is Paper, so no mod is needed
+# to join, but mods that others require must stay in the same group as them (or always on).
+# Patterns are matched against paths like "mods/iris-fabric-1.9.6+mc1.21.11.jar"; `*` matches
+# anything, matching ignores case.
+#
+# `pack-publisher --suggest-optional` lists more client-only mods that could be added here.
+# Mod ids in `keep` are ones we checked and decided players need; they're never suggested.
+keep = [
+  "sodium",          # performance: off = much slower
+  "smoothcoasters",  # smooth ride camera on the park's coasters
+  "modmenu",         # mod list / settings UI
+]
+
+[[feature]]
+id = "shaders"
+name = "Shaders"
+description = "Iris and the shader packs, for fireworks and night shows. The biggest graphics cost."
+# Everything that requires Iris must be here too, or players without shaders crash.
+# pack-publisher checks this.
+include = ["mods/iris-*", "shaderpacks/*"]
+
+[[feature]]
+id = "dynamic_lights"
+name = "Dynamic lights"
+description = "Lanterns and torches in your hand light up dark rides (LambDynamicLights)."
+include = ["mods/lambdynamiclights-*"]
+
+[[preset]]
+id = "high"
+name = "High"
+description = "Everything on."
+disable = []
+
+[[preset]]
+id = "balanced"
+name = "Balanced"
+description = "No shaders."
+disable = ["shaders"]
+
+[[preset]]
+id = "low"
+name = "Low-end PC"
+description = "No shaders or visual extras."
+disable = ["shaders", "dynamic_lights"]

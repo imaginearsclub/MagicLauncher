@@ -1,0 +1,183 @@
+name: Promote launcher release
+
+# Makes a staged launcher version (see release.yml) live in its channel's update feed(s):
+#   x.y.z           -> launcher/latest.json (Release) + beta + alpha feeds, download page
+#   x.y.z-beta.N    -> launcher/beta/latest.json + launcher/alpha/latest.json
+#   x.y.z-alpha.N   -> launcher/alpha/latest.json
+# A feed never moves to a lower version (scripts/channel_feeds.py) unless `force` is set
+# by hand (rollback). Pre-releases never touch the Release feed or the download page.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Staged version to make live, e.g. 0.2.0 or 0.3.0-beta.1 (no leading v)"
+        required: true
+      force:
+        description: "Allow lowering feeds (rollback)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote-launcher
+  cancel-in-progress: false
+
+env:
+  BUCKET: ${{ vars.MAGIC_BUCKET }}
+  CDN: ${{ vars.MAGIC_CDN }}
+  DISTRIBUTION_ID: ${{ vars.MAGIC_DISTRIBUTION_ID }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_DEFAULT_REGION: ${{ vars.MAGIC_AWS_REGION || 'us-east-1' }}
+
+jobs:
+  promote:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Hosting variables must be set
+        run: |
+          missing=""
+          for v in BUCKET CDN DISTRIBUTION_ID; do [ -n "${!v}" ] || missing="$missing MAGIC_$v"; done
+          if [ -n "$missing" ]; then
+            echo "Set these repo variables first (Settings > Secrets and variables > Actions):$missing" >&2
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts
+          sparse-checkout-cone-mode: false
+
+      - name: Resolve version
+        run: |
+          V="${{ inputs.version || github.event.release.tag_name }}"
+          V="${V#v}"
+          echo "VERSION=$V" >> "$GITHUB_ENV"
+          echo "Promoting $V"
+
+      - name: Fetch staged files
+        run: |
+          set -euo pipefail
+          aws s3 cp "s3://$BUCKET/pack/launcher/$VERSION/" staged/ --recursive --only-show-errors
+          test -s staged/latest.json || { echo "Nothing staged for $VERSION (did release.yml finish?)" >&2; exit 1; }
+          jq -e --arg v "$VERSION" '.version == $v and (.platforms | length) == 4' staged/latest.json
+          ls -l staged
+
+      - name: Choose feeds
+        run: |
+          set -euo pipefail
+          cur() { aws s3 cp "s3://$BUCKET/pack/launcher/$1" - 2>/dev/null | jq -r '.version // "-"' 2>/dev/null || echo -; }
+          R=$(cur latest.json); B=$(cur beta/latest.json); A=$(cur alpha/latest.json)
+          echo "Current feeds: release=$R beta=$B alpha=$A"
+          FORCE=""; [ "${{ inputs.force }}" = "true" ] && FORCE="--force"
+          FEEDS=$(python3 -I scripts/channel_feeds.py "$VERSION" "$R" "$B" "$A" $FORCE | tr '\n' ' ')
+          echo "Writing feeds: ${FEEDS:-none}"
+          echo "FEEDS=$FEEDS" >> "$GITHUB_ENV"
+          case " $FEEDS " in *" release "*) echo "RELEASE=true" >> "$GITHUB_ENV";; *) echo "RELEASE=false" >> "$GITHUB_ENV";; esac
+
+      - name: Download page and fixed links (Release only)
+        if: env.RELEASE == 'true'
+        run: |
+          set -euo pipefail
+          N=magiclauncher
+          mkdir -p download
+          for f in "$N-setup.exe" "$N-aarch64.dmg" "$N-x64.dmg" "$N-x86_64.AppImage" "$N-amd64.deb" "$N-x86_64.rpm"; do
+            cp "staged/$f" "download/$f"
+          done
+          cat > download/index.html <<EOF
+          <!doctype html><html lang="en"><head><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>Imaginears MagicLauncher</title>
+          <style>body{font-family:system-ui,sans-serif;background:#090d16;color:#f1f5f9;max-width:640px;margin:40px auto;padding:0 16px}
+          a{color:#f59e0b}li{margin:8px 0}.m{color:#94a3b8;font-size:14px}</style></head><body>
+          <h1>Imaginears MagicLauncher $VERSION</h1>
+          <ul>
+          <li><a href="$N-setup.exe">Windows</a></li>
+          <li><a href="$N-aarch64.dmg">macOS (Apple Silicon)</a> · <a href="$N-x64.dmg">macOS (Intel)</a></li>
+          <li><a href="$N-x86_64.AppImage">Linux AppImage</a> (updates itself) · <a href="$N-amd64.deb">.deb</a> · <a href="$N-x86_64.rpm">.rpm</a></li>
+          </ul>
+          <p class="m">The launcher isn't code-signed yet. Windows: "More info" → "Run anyway".
+          macOS: open it once, then System Settings → Privacy &amp; Security → Open Anyway.</p>
+          <p class="m">Already installed? The launcher updates itself when you open it.
+          Beta and Alpha builds are offered inside the launcher (Settings → Update channel).</p>
+          </body></html>
+          EOF
+          aws s3 cp download/ "s3://$BUCKET/pack/launcher/download/" --recursive --exclude index.html \
+            --cache-control "max-age=300" --only-show-errors
+          aws s3 cp download/index.html "s3://$BUCKET/pack/launcher/download/index.html" \
+            --cache-control no-cache --content-type "text/html; charset=utf-8" --only-show-errors
+
+      # Pack owner's tools (Release only): fixed download links in /launcher/tools/ and the
+      # Imaginears PackPublisher update feed. Older releases staged no tools: skipped.
+      - name: Pack publisher tools (Release only)
+        if: env.RELEASE == 'true'
+        run: |
+          set -euo pipefail
+          if [ ! -s staged/tools/latest.json ]; then
+            echo "No pack publisher tools staged for $VERSION; skipping."; exit 0
+          fi
+          jq -e --arg v "$VERSION" '.version == $v' staged/tools/latest.json
+          for f in imaginears-pack-publisher-setup.exe pack-publisher.exe; do
+            aws s3 cp "staged/tools/$f" "s3://$BUCKET/pack/launcher/tools/$f" \
+              --cache-control "max-age=300" --only-show-errors
+          done
+          aws s3 cp staged/tools/latest.json "s3://$BUCKET/pack/launcher/tools/latest.json" \
+            --cache-control no-cache --content-type application/json --only-show-errors
+          aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" \
+            --paths "/launcher/tools/*" --query Invalidation.Id --output text
+          # Verify through the CDN: the feed shows this version and its installer link works.
+          for i in $(seq 1 20); do
+            if curl -fsS "$CDN/launcher/tools/latest.json" | jq -e --arg v "$VERSION" '.version == $v' >/dev/null; then
+              url=$(curl -fsS "$CDN/launcher/tools/latest.json" | jq -r '.platforms["windows-x86_64"].url')
+              curl -fsSI "$url" | head -n1
+              curl -fsSI "$CDN/launcher/tools/imaginears-pack-publisher-setup.exe" | head -n1
+              echo "Pack publisher tools $VERSION are live."; break
+            fi
+            [ "$i" = 20 ] && { echo "tools feed still not showing $VERSION" >&2; exit 1; }
+            sleep 15
+          done
+
+      - name: Publish feeds
+        if: env.FEEDS != ''
+        run: |
+          set -euo pipefail
+          paths=()
+          for feed in $FEEDS; do
+            case "$feed" in
+              release) key=latest.json ;;
+              beta)    key=beta/latest.json ;;
+              alpha)   key=alpha/latest.json ;;
+            esac
+            aws s3 cp staged/latest.json "s3://$BUCKET/pack/launcher/$key" \
+              --cache-control no-cache --content-type application/json --only-show-errors
+            paths+=("/launcher/$key")
+          done
+          [ "$RELEASE" = "true" ] && paths+=("/launcher/download/*")
+          aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" \
+            --paths "${paths[@]}" --query Invalidation.Id --output text
+
+      - name: Verify
+        if: env.FEEDS != ''
+        run: |
+          set -euo pipefail
+          for feed in $FEEDS; do
+            case "$feed" in release) key=latest.json ;; beta) key=beta/latest.json ;; alpha) key=alpha/latest.json ;; esac
+            for i in $(seq 1 20); do
+              if curl -fsS "$CDN/launcher/$key" | jq -e --arg v "$VERSION" '.version == $v' >/dev/null; then
+                echo "$feed feed: $VERSION"; break
+              fi
+              [ "$i" = 20 ] && { echo "$feed feed still not showing $VERSION" >&2; exit 1; }
+              sleep 15
+            done
+          done
+          if [ "$RELEASE" = "true" ]; then
+            curl -fsSI "$CDN/launcher/download/magiclauncher-setup.exe" | head -n1
+          fi
+          echo "Launcher $VERSION is live in: $FEEDS"
+
+      - name: Nothing to do
+        if: env.FEEDS == ''
+        run: echo "Every eligible feed already has a newer version; nothing written (use force to roll back)."

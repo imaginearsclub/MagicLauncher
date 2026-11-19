@@ -1,0 +1,60 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Imaginears PackPublisher",
+  "mainBinaryName": "imaginears-pack-publisher",
+  "identifier": "club.imaginears.pack-publisher-gui",
+  "build": {
+    "beforeDevCommand": "node ../../node_modules/vite/bin/vite.js",
+    "devUrl": "http://localhost:1430",
+    "beforeBuildCommand": "node ../../node_modules/vite/bin/vite.js build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Imaginears PackPublisher",
+        "theme": "Dark",
+        "width": 900,
+        "height": 680,
+        "minWidth": 720,
+        "minHeight": 520,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": [
+      "../../../src-tauri/icons/32x32.png",
+      "../../../src-tauri/icons/128x128.png",
+      "../../../src-tauri/icons/128x128@2x.png",
+      "../../../src-tauri/icons/icon.icns",
+      "../../../src-tauri/icons/icon.ico"
+    ],
+    "targets": [
+      "nsis"
+    ],
+    "createUpdaterArtifacts": true,
+    "shortDescription": "Publishes the Imaginears Magic Pack.",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFBNEM2Njc5NTAyRjgwMTQKUldRVWdDOVFlV1pNcWptRDl1UnBwSnc0RjVMQjc1bEY5enhIZlBWRzNINDdTT0NmM1RSWC9obGIK",
+      "endpoints": [
+        "https://launcher.imaginears.club/launcher/tools/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

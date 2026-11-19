@@ -1,0 +1,37 @@
+# Weekly dependency updates. Minor/patch bumps are grouped into one PR per ecosystem so the
+# repo isn't flooded; major versions come as separate PRs to review on their own.
+# Security alerts get their own PRs regardless of this schedule (enable "Dependabot security
+# updates" in Settings → Code security).
+# CI runs on our self-hosted runners for these PRs, like any other change: review before merging.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, rust]
+    groups:
+      rust-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, javascript]
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    labels: [dependencies, ci]
+    groups:
+      actions:
+        patterns: ["*"]

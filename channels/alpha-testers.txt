@@ -1,0 +1,8 @@
+# MagicLauncher Alpha channel testers (Cast Members + trusted Guests). Alpha builds can break.
+#
+# One Minecraft name (or UUID) per line. Optional expiry: `Name until 2027-01-31`.
+# Everything after `#` is a comment, e.g. who asked for it.
+#
+# Pushing a change to main publishes the signed list (publish-allowlist.yml); players see
+# the Alpha option on their next launcher start. Remove a line to revoke access.
+Clarkcj  # developer

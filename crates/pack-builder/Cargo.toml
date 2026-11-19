@@ -1,0 +1,19 @@
+[package]
+name = "pack-builder"
+description = "Builds pack.json (and an upload folder) from a CurseForge instance folder or zip."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+launcher-core.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+semver = "1"
+toml = "0.8"
+clap = { version = "4", features = ["derive"] }
+walkdir = "2"
+zip = { version = "9", default-features = false, features = ["deflate"] }

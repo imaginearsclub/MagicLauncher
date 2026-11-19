@@ -2919,7 +2919,7 @@ dependencies = [
 
 [[package]]
 name = "launcher-core"
-version = "0.8.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
  "futures-util",
@@ -3048,6 +3048,24 @@ name = "lru-slab"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4050469837a6ff301cd14c1f8f24f88549e6d548f24f64e2148eb0f72cebc51f"
+
+[[package]]
+name = "magiclauncher"
+version = "0.1.0"
+dependencies = [
+ "discord-rich-presence",
+ "launcher-core",
+ "reqwest 0.12.28",
+ "semver",
+ "sentry",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
+ "tauri-plugin-updater",
+ "tokio",
+]
 
 [[package]]
 name = "markup5ever"
@@ -3653,7 +3671,7 @@ checksum = "1a80800c0488c3a21695ea981a54918fbb37abf04f4d0720c453632255e2ff0e"
 
 [[package]]
 name = "pack-builder"
-version = "0.8.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "clap",
  "launcher-core",
@@ -3669,7 +3687,7 @@ dependencies = [
 
 [[package]]
 name = "pack-publisher"
-version = "0.8.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "aws-sdk-cloudfront",
  "aws-sdk-s3",
@@ -4031,7 +4049,7 @@ dependencies = [
 
 [[package]]
 name = "publisher-gui"
-version = "0.8.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "launcher-core",
  "pack-builder",
@@ -4514,24 +4532,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
 dependencies = [
  "winapi-util",
-]
-
-[[package]]
-name = "sanctuary-united-launcher"
-version = "0.8.0-alpha.1"
-dependencies = [
- "discord-rich-presence",
- "launcher-core",
- "reqwest 0.12.28",
- "semver",
- "sentry",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-opener",
- "tauri-plugin-updater",
- "tokio",
 ]
 
 [[package]]

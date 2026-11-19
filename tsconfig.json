@@ -8,9 +8,7 @@
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "types": [
-      "svelte"
-    ]
+    "types": ["svelte"]
   },
   "include": [
     "src/**/*.ts",

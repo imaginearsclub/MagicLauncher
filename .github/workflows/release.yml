@@ -1,0 +1,384 @@
+name: Release
+
+# Push a tag vX.Y.Z matching [workspace.package].version in Cargo.toml. This:
+#   1. builds Windows / macOS (arm64 + x64) / Linux bundles, signed for the updater,
+#   2. opens a DRAFT GitHub release with the installers,
+#   3. stages the files and a ready latest.json at s3://<MAGIC_BUCKET>/pack/launcher/<version>/.
+# Players don't see anything yet. Publishing the draft release runs promote-launcher.yml,
+# which makes it the live update. See docs/releasing.md.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+# Re-pushing a tag cancels the older run for it.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUCKET: ${{ vars.MAGIC_BUCKET }}
+  CDN: ${{ vars.MAGIC_CDN }}
+
+jobs:
+  verify-version:
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - name: Hosting variables must be set
+        run: |
+          missing=""
+          for v in BUCKET CDN; do [ -n "${!v}" ] || missing="$missing MAGIC_$v"; done
+          if [ -n "$missing" ]; then
+            echo "Set these repo variables first (Settings > Secrets and variables > Actions):$missing" >&2
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+      - name: Tag must match Cargo version
+        id: v
+        run: |
+          CARGO_VERSION=$(grep -m1 -A3 '^\[workspace.package\]' Cargo.toml | sed -n 's/^version = "\(.*\)"/\1/p')
+          if [ "v$CARGO_VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match Cargo version $CARGO_VERSION" >&2
+            exit 1
+          fi
+          echo "version=$CARGO_VERSION" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: verify-version
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          # runner: JSON label list. RUNNER_WINDOWS / RUNNER_MAC repo variables select our
+          # own machines (e.g. ["self-hosted","magic-mac"]); unset = GitHub-hosted.
+          - runner: ${{ vars.RUNNER_WINDOWS || '"windows-latest"' }}
+            platform: windows-x86_64
+            target: ""
+          - runner: ${{ vars.RUNNER_MAC || '"macos-latest"' }}
+            platform: darwin-aarch64
+            target: aarch64-apple-darwin
+          - runner: ${{ vars.RUNNER_MAC || '"macos-latest"' }}
+            platform: darwin-x86_64
+            target: x86_64-apple-darwin
+          - runner: '"ubuntu-22.04"'
+            platform: linux-x86_64
+            target: ""
+    name: build (${{ matrix.platform }})
+    runs-on: ${{ fromJSON(matrix.runner) }}
+    env:
+      MAGIC_MS_CLIENT_ID: ${{ vars.MAGIC_MS_CLIENT_ID }}
+      MAGIC_PACK_URL: ${{ vars.MAGIC_PACK_URL }}
+      # Readable Sentry stack traces: line-level debug info in a *separate* file (.pdb / .dSYM /
+      # .debug) that is uploaded to Sentry and never shipped; the launcher binary stays stripped.
+      CARGO_PROFILE_RELEASE_DEBUG: line-tables-only
+      # Linux: Sentry can't read .dwp packages, so build unsplit and move the debug info into
+      # a .debug file with objcopy before bundling (steps below).
+      CARGO_PROFILE_RELEASE_SPLIT_DEBUGINFO: ${{ matrix.platform == 'linux-x86_64' && 'off' || 'packed' }}
+      # Windows: "strip" would also suppress the .pdb. Linux: objcopy strips after extracting.
+      CARGO_PROFILE_RELEASE_STRIP: ${{ (matrix.platform == 'windows-x86_64' || matrix.platform == 'linux-x86_64') && 'none' || 'symbols' }}
+    steps:
+      # Our own machines keep target/ between runs (incremental builds, nothing to upload);
+      # GitHub-hosted runners start clean and use rust-cache instead.
+      - uses: actions/checkout@v7
+        with:
+          clean: ${{ runner.environment == 'github-hosted' }}
+
+      # Self-hosted Windows: make `bash` Git's bash, not System32\bash.exe (the WSL stub).
+      - name: Prefer Git Bash
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: echo %ProgramFiles%\Git\bin>>"%GITHUB_PATH%"
+
+      # With target/ kept, old versions' installers would still be there: remove them so
+      # staging can only pick up this build. Same for a previous run's staging folder.
+      - name: Remove old bundles
+        shell: bash
+        run: rm -rf stage target/release/bundle target/*-*-*/release/bundle
+
+      # Self-hosted runners keep target/ between runs; if that leaves the disk short, start
+      # clean rather than fail mid-build ("No space left on device").
+      - name: Free disk space if low
+        if: runner.environment == 'self-hosted'
+        shell: bash
+        run: |
+          free_gb=$(df -Pk . | awk 'NR==2 {print int($4/1048576)}')
+          echo "Free disk: ${free_gb} GB"
+          if [ "$free_gb" -lt 20 ]; then
+            echo "::warning::Less than 20 GB free on this runner; deleting target/ before building"
+            rm -rf target
+            df -Pk . | awk 'NR==2 {print "Free after clean: " int($4/1048576) " GB"}'
+          fi
+
+      - name: Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev pkg-config
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      # Only on GitHub's runners: on ours, saving it uploaded hundreds of MB per job over the
+      # home connection (spiked game ping to 400 ms during builds).
+      - uses: Swatinem/rust-cache@v2
+        if: runner.environment == 'github-hosted'
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
+      - run: pnpm install --frozen-lockfile
+
+      # macOS signing/notarization: add APPLE_* secrets here when ready (README "Still to do").
+      # Build only (no tagName = no GitHub release here). The draft release is created once,
+      # with just the installers, by the stage job after every platform has built.
+      - uses: tauri-apps/tauri-action@v1
+        if: runner.os != 'Linux'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Used by `pnpm build:release` to upload the UI's source maps (then deleted).
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        with:
+          # macOS: only the .app (+ updater bundle). Tauri's DMG step scripts Finder, which
+          # times out on a runner running as a background service; the DMG is made below.
+          args: >-
+            --config src-tauri/tauri.release.conf.json
+            ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
+            ${{ runner.os == 'macOS' && '--bundles app' || '' }}
+
+      # Linux: build, move the debug info out (Sentry reads a .debug file, not .dwp), then
+      # bundle the stripped binary. Same result as tauri-action, plus readable crash reports.
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: pnpm tauri build --config src-tauri/tauri.release.conf.json --no-bundle
+      - name: Split debug info (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          B=target/release/magiclauncher
+          objcopy --only-keep-debug "$B" "$B.debug"
+          objcopy --strip-debug --strip-unneeded "$B"
+          objcopy --add-gnu-debuglink="$B.debug" "$B"
+          ls -l "$B" "$B.debug"
+      - name: Bundle (Linux)
+        if: runner.os == 'Linux'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        # RPM versions can't contain '-', so pre-releases ship AppImage + deb only.
+        run: >-
+          pnpm tauri bundle --config src-tauri/tauri.release.conf.json
+          --bundles ${{ contains(github.ref_name, '-') && 'appimage,deb' || 'appimage,deb,rpm' }}
+
+      # Rust debug info → Sentry (magiclauncher), so crash reports show file and line.
+      # A missing/invalid token only warns: it must never block a release.
+      - name: Upload debug files to Sentry
+        shell: bash
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG || 'imaginears-club' }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT || 'magiclauncher' }}
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then echo "::warning::SENTRY_AUTH_TOKEN not set; skipping debug files"; exit 0; fi
+          R="target/${{ matrix.target }}/release"; [ -d "$R" ] || R="target/release"
+          shopt -s nullglob
+          # The binary plus its separate debug info: .pdb (Windows, named after the crate with
+          # underscores), .dSYM (macOS), .debug (Linux, split off by objcopy above).
+          files=()
+          for f in "$R"/magiclauncher "$R"/magiclauncher.exe "$R"/*.pdb "$R"/*.debug "$R"/*.dSYM; do
+            [ -e "$f" ] && files+=("$f")
+          done
+          [ ${#files[@]} -gt 0 ] || { echo "::warning::no debug files found in $R"; exit 0; }
+          ls -ld "${files[@]}"
+          pnpm exec sentry-cli debug-files upload --include-sources "${files[@]}" \
+            || echo "::warning::Sentry debug-file upload failed (release continues)"
+
+      # Copy the bundles to fixed, space-free names and record the updater signature.
+      - name: Stage bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          B="target/${{ matrix.target }}/release/bundle"
+          [ -d "$B" ] || B="target/release/bundle"
+          S="stage"; mkdir -p "$S"
+          N="magiclauncher"
+          one() { ls $1 2>/dev/null | head -n1; }
+          case "${{ matrix.platform }}" in
+            windows-x86_64)
+              u=$(one "$B/nsis/*-setup.exe"); cp "$u" "$S/$N-setup.exe"; cp "$u.sig" "$S/$N-setup.exe.sig"
+              upd="$N-setup.exe" ;;
+            darwin-aarch64|darwin-x86_64)
+              a=$([ "${{ matrix.platform }}" = darwin-aarch64 ] && echo aarch64 || echo x64)
+              # Unsigned apps show as "damaged" on Apple Silicon; the build ad-hoc signs it
+              # (bundle.macOS.signingIdentity "-"). Fail here rather than ship a broken app.
+              codesign --verify --deep --strict --verbose=2 "$B/macos/"*.app
+              u=$(one "$B/macos/*.app.tar.gz"); cp "$u" "$S/$N-$a.app.tar.gz"; cp "$u.sig" "$S/$N-$a.app.tar.gz.sig"
+              # Plain DMG: the app plus an Applications shortcut to drag it onto.
+              d=$(mktemp -d); cp -R "$B/macos/"*.app "$d/"; ln -s /Applications "$d/Applications"
+              hdiutil create -volname "Imaginears MagicLauncher" -srcfolder "$d" -ov -format UDZO "$S/$N-$a.dmg"
+              rm -rf "$d"
+              upd="$N-$a.app.tar.gz" ;;
+            linux-x86_64)
+              u=$(one "$B/appimage/*.AppImage"); cp "$u" "$S/$N-x86_64.AppImage"; cp "$u.sig" "$S/$N-x86_64.AppImage.sig"
+              cp "$(one "$B/deb/*.deb")" "$S/$N-amd64.deb"
+              r=$(one "$B/rpm/*.rpm" || true); [ -z "$r" ] || cp "$r" "$S/$N-x86_64.rpm"   # none for pre-releases
+              upd="$N-x86_64.AppImage" ;;
+          esac
+          sig=$(tr -d '\r\n' < "$S/$upd.sig")
+          [ -n "$sig" ] || { echo "empty updater signature for $upd" >&2; exit 1; }
+          printf '{"platform":"%s","file":"%s","signature":"%s"}\n' "${{ matrix.platform }}" "$upd" "$sig" > "$S/${{ matrix.platform }}.platform.json"
+          ls -l "$S"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: stage-${{ matrix.platform }}
+          path: stage/
+          if-no-files-found: error
+
+      # The pack owner's tools, same version as the launcher, one shared engine:
+      # pack-publisher.exe (command line) and Imaginears PackPublisher (window: NSIS installer
+      # + updater signature; it updates itself from /launcher/tools/latest.json). Not on the
+      # public download page. Windows only: the owner's PC.
+      - name: Build pack publisher tools
+        if: matrix.platform == 'windows-x86_64'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cargo build --release --locked -p pack-publisher
+          rm -f target/release/bundle/nsis/Imaginears\ PackPublisher_*
+          # Through the Tauri CLI so the window embeds its UI (a plain cargo build would
+          # try to load the dev server).
+          pnpm publisher build --bundles nsis
+          mkdir -p tools
+          cp target/release/pack-publisher.exe tools/pack-publisher.exe
+          u=$(ls target/release/bundle/nsis/Imaginears\ PackPublisher_*-setup.exe | head -n1)
+          cp "$u" tools/imaginears-pack-publisher-setup.exe
+          cp "$u.sig" tools/imaginears-pack-publisher-setup.exe.sig
+          [ -s tools/imaginears-pack-publisher-setup.exe.sig ] || { echo "no updater signature" >&2; exit 1; }
+          # Don't leave it next to the launcher's installer (its stage step matches *-setup.exe).
+          rm -f target/release/bundle/nsis/Imaginears\ PackPublisher_*
+          ./tools/pack-publisher.exe --version
+          ls -l tools
+      - uses: actions/upload-artifact@v7
+        if: matrix.platform == 'windows-x86_64'
+        with:
+          name: tools-windows
+          path: tools/
+          if-no-files-found: error
+
+  stage-s3:
+    needs: [verify-version, build]
+    runs-on: ubuntu-22.04
+    env:
+      VERSION: ${{ needs.verify-version.outputs.version }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: us-east-1
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: CHANGELOG.md
+          sparse-checkout-cone-mode: false
+
+      # Release notes = this version's CHANGELOG.md section. No section, no release.
+      - name: Release notes from CHANGELOG.md
+        run: |
+          awk -v v="$VERSION" '
+            index($0, "## [" v "]") == 1 { f = 1; next }
+            f && /^## \[/ { exit }
+            f' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          if ! grep -q '[^[:space:]]' "$RUNNER_TEMP/notes.md"; then
+            echo "CHANGELOG.md has no '## [$VERSION]' section; add one before tagging." >&2
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/notes.md"
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: stage-*
+          path: stage
+          merge-multiple: true
+
+      - name: Build latest.json
+        run: |
+          set -euo pipefail
+          cd stage
+          base="$CDN/launcher/$VERSION"
+          jq -s --arg v "$VERSION" --arg base "$base" \
+             --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+            {version: $v,
+             notes: "See what changed: ${{ vars.MAGIC_CDN }}/launcher/download/index.html",
+             pub_date: $date,
+             platforms: (map({key: .platform, value: {signature: .signature, url: ($base + "/" + .file)}}) | from_entries)}
+          ' *.platform.json > latest.json
+          # Every platform present, every entry complete: a malformed feed breaks updates for everyone.
+          jq -e '(.platforms | keys) == ["darwin-aarch64","darwin-x86_64","linux-x86_64","windows-x86_64"]
+                 and all(.platforms[]; (.signature | length) > 0 and (.url | startswith("https://")))' latest.json
+          rm ./*.platform.json
+          cat latest.json
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: tools-windows
+          path: tools
+
+      # Imaginears PackPublisher's own update feed, staged next to the launcher's. Published
+      # to /launcher/tools/ by promote-launcher.yml (Release versions only).
+      - name: Build tools/latest.json
+        run: |
+          set -euo pipefail
+          sig=$(tr -d '\r\n' < tools/imaginears-pack-publisher-setup.exe.sig)
+          [ -n "$sig" ] || { echo "empty publisher signature" >&2; exit 1; }
+          jq -n --arg v "$VERSION" --arg sig "$sig" \
+             --arg url "$CDN/launcher/$VERSION/tools/imaginears-pack-publisher-setup.exe" \
+             --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+            {version: $v, notes: "See the launcher release notes.", pub_date: $date,
+             platforms: {"windows-x86_64": {signature: $sig, url: $url}}}' > tools/latest.json
+          jq -e '.platforms["windows-x86_64"] | (.signature | length) > 0 and (.url | startswith("https://"))' tools/latest.json
+          cat tools/latest.json
+
+      - name: Upload to s3://${{ env.BUCKET }}/pack/launcher/${{ env.VERSION }}/
+        run: |
+          aws s3 cp stage/ "s3://$BUCKET/pack/launcher/$VERSION/" --recursive --exclude latest.json --only-show-errors
+          aws s3 cp stage/latest.json "s3://$BUCKET/pack/launcher/$VERSION/latest.json" \
+            --cache-control no-cache --content-type application/json --only-show-errors
+          aws s3 cp tools/ "s3://$BUCKET/pack/launcher/$VERSION/tools/" --recursive --exclude latest.json --only-show-errors
+          aws s3 cp tools/latest.json "s3://$BUCKET/pack/launcher/$VERSION/tools/latest.json" \
+            --cache-control no-cache --content-type application/json --only-show-errors
+
+      - name: Draft GitHub release (installers + pack publisher tools)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          N=magiclauncher
+          files=()
+          for f in setup.exe aarch64.dmg x64.dmg x86_64.AppImage amd64.deb x86_64.rpm; do
+            [ -f "stage/$N-$f" ] && files+=("stage/$N-$f")
+          done
+          # A release must have every installer; pre-releases have no .rpm.
+          want=6; [[ "$TAG" == *-* ]] && want=5
+          [ "${#files[@]}" -eq "$want" ] || { echo "expected $want installers, got: ${files[*]}" >&2; exit 1; }
+          files+=("tools/pack-publisher.exe" "tools/imaginears-pack-publisher-setup.exe")
+          notes="$RUNNER_TEMP/notes.md"
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${files[@]}" -R "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --notes-file "$notes"
+          else
+            pre=""; [[ "$TAG" == *-* ]] && pre="--prerelease"
+            gh release create "$TAG" "${files[@]}" -R "$GITHUB_REPOSITORY" --draft $pre \
+              --title "Imaginears MagicLauncher $TAG" --notes-file "$notes"
+          fi
+          echo "Staged. Publish the draft GitHub release to make $VERSION live."

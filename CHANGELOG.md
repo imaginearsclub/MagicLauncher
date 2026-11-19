@@ -1,0 +1,34 @@
+# Changelog
+
+All notable changes to MagicLauncher and Imaginears PackPublisher. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
+[Semantic Versioning](https://semver.org/). Each section lists Added, Changed, Fixed and
+Breaking.
+
+## [Unreleased]
+
+### Added
+- Launcher core, app shell, PackPublisher (CLI + window), release workflows and docs, ported
+  from an existing Tauri launcher codebase and rebranded for Imaginears Club.
+- New update-signing and Alpha-allowlist keys, separate from any other project.
+- CI check that no names, IDs or hosts of the reference project come back.
+- Fabric support: the launcher installs Fabric Loader from Fabric meta (no installer run).
+- PackPublisher reads Prism Launcher, Modrinth App and CurseForge instances (or a plain folder
+  with `--minecraft` / `--fabric`) and blocks publishing when a mod needs another Fabric
+  Loader or Minecraft version.
+
+- New look from the MagicLauncher design system: top bar with live server status, side
+  navigation, a launch cockpit on the Play screen, and a Mods & Shaders screen to pick a
+  graphics preset or switch optional mods on and off.
+- Title bar in the launcher's colours: midnight navy on Windows 11, dark on Windows 10 and
+  Linux, and on macOS the top bar runs under the window buttons (drag the top bar to move).
+
+### Fixed
+- Server status picks the SRV record by priority and weight instead of the first one.
+- A temporary Microsoft sign-in outage (rate limit, 5xx) no longer signs the player out;
+  only an expired or revoked login does.
+- Files that differ only in extension (`a.json`, `a.toml`) no longer share a temporary file
+  while downloading in parallel.
+- Publishing a changed self-hosted file no longer overwrites the copy the live pack uses:
+  files are stored under `files/<sha1>/<path>`. The publisher also publishes when only the
+  storage layout changed.
