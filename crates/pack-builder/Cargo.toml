@@ -13,7 +13,7 @@ reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 semver = "1"
-toml = "0.8"
+toml = "1.2"
 clap = { version = "4", features = ["derive"] }
 walkdir = "2"
 zip = { version = "9", default-features = false, features = ["deflate"] }
