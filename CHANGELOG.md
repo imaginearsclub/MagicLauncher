@@ -7,6 +7,10 @@ Breaking.
 
 ## [Unreleased]
 
+## [0.1.0-alpha.1] - 2026-11-19
+
+First test build (Alpha channel only). Release rehearsal for 0.1.0.
+
 ### Added
 - Launcher core, app shell, PackPublisher (CLI + window), release workflows and docs, ported
   from an existing Tauri launcher codebase and rebranded for Imaginears Club.
@@ -32,3 +36,4 @@ Breaking.
 - Publishing a changed self-hosted file no longer overwrites the copy the live pack uses:
   files are stored under `files/<sha1>/<path>`. The publisher also publishes when only the
   storage layout changed.
+- Dev-only dependency: minimatch pinned to a fixed version (GHSA-g3hv-75wg-m249).

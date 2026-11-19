@@ -2,7 +2,9 @@
 # repo isn't flooded; major versions come as separate PRs to review on their own.
 # Security alerts get their own PRs regardless of this schedule (enable "Dependabot security
 # updates" in Settings → Code security).
-# CI runs on our self-hosted runners for these PRs, like any other change: review before merging.
+# CI runs on these PRs like any other change: review before merging. Security-update jobs
+# that fail for glib (waits on Tauri) or a transitive minimatch (pinned by an override in
+# pnpm-workspace.yaml) are expected.
 version: 2
 updates:
   - package-ecosystem: cargo
