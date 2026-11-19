@@ -1,4 +1,3 @@
-{
   "extends": "@tsconfig/svelte/tsconfig.json",
   "compilerOptions": {
     "target": "ES2022",
@@ -8,7 +7,14 @@
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "types": ["svelte"]
+    "types": [
+      "svelte"
+    ]
   },
-  "include": ["src/**/*.ts", "src/**/*.svelte"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.svelte",
+    "apps/publisher-gui/src/**/*.ts",
+    "apps/publisher-gui/src/**/*.svelte"
+  ]
 }

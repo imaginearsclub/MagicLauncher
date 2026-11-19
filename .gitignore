@@ -1,0 +1,13 @@
+/target
+/node_modules
+/dist
+/dist-pack
+/src-tauri/gen/schemas
+/apps/publisher-gui/dist
+/apps/publisher-gui/src-tauri/gen/schemas
+*.part
+.DS_Store
+.idea/
+.vscode/
+*.log
+e2e/artifacts/
