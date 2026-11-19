@@ -148,9 +148,18 @@ pub async fn refresh(client: &reqwest::Client, uuid: Option<&str>) -> Result<Ses
         .send()
         .await?;
     if !resp.status().is_success() {
-        // Revoked or expired (≈90 days unused): require a fresh sign-in.
-        let _ = delete_refresh_token(uuid);
-        return Err(Error::NotSignedIn);
+        let status = resp.status();
+        let body: Option<OAuthError> = resp.json().await.ok();
+        if refresh_token_is_dead(status, body.as_ref()) {
+            // Revoked or expired (≈90 days unused): require a fresh sign-in.
+            let _ = delete_refresh_token(uuid);
+            return Err(Error::NotSignedIn);
+        }
+        // Rate limit, outage, network trouble at Microsoft: keep the saved login and let
+        // the player try again.
+        return Err(Error::Auth(format!(
+            "Microsoft sign-in is unavailable right now ({status}); please try again in a moment"
+        )));
     }
     let tokens: MsTokens = resp.json().await?;
     let session = minecraft_login(client, &tokens.access_token).await?;
@@ -160,6 +169,14 @@ pub async fn refresh(client: &reqwest::Client, uuid: Option<&str>) -> Result<Ses
         let _ = delete_refresh_token(None);
     }
     Ok(session)
+}
+
+/// Only Microsoft's "this refresh token is no longer valid" answer ends a saved login.
+/// Everything else (429, 5xx, odd bodies) is temporary and must not sign the player out.
+fn refresh_token_is_dead(status: reqwest::StatusCode, body: Option<&OAuthError>) -> bool {
+    matches!(status.as_u16(), 400 | 401)
+        && body
+            .is_some_and(|e| matches!(e.error.as_str(), "invalid_grant" | "interaction_required"))
 }
 
 async fn minecraft_login(client: &reqwest::Client, ms_access_token: &str) -> Result<Session> {
@@ -373,5 +390,42 @@ mod account_tests {
         assert_eq!(a.active.as_deref(), Some("bbb"));
         a.remove("bbb");
         assert_eq!(a.active, None);
+    }
+}
+
+#[cfg(test)]
+mod refresh_tests {
+    use super::*;
+    use reqwest::StatusCode;
+
+    fn err(code: &str) -> OAuthError {
+        serde_json::from_value(serde_json::json!({"error": code, "error_description": "x"}))
+            .unwrap()
+    }
+
+    #[test]
+    fn only_a_dead_refresh_token_signs_out() {
+        assert!(refresh_token_is_dead(
+            StatusCode::BAD_REQUEST,
+            Some(&err("invalid_grant"))
+        ));
+        assert!(refresh_token_is_dead(
+            StatusCode::BAD_REQUEST,
+            Some(&err("interaction_required"))
+        ));
+        // Temporary trouble keeps the saved login.
+        assert!(!refresh_token_is_dead(
+            StatusCode::TOO_MANY_REQUESTS,
+            Some(&err("invalid_grant"))
+        ));
+        assert!(!refresh_token_is_dead(
+            StatusCode::SERVICE_UNAVAILABLE,
+            None
+        ));
+        assert!(!refresh_token_is_dead(
+            StatusCode::BAD_REQUEST,
+            Some(&err("temporarily_unavailable"))
+        ));
+        assert!(!refresh_token_is_dead(StatusCode::BAD_REQUEST, None));
     }
 }

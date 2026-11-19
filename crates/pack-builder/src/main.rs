@@ -89,7 +89,14 @@ async fn main() -> Result<(), BoxError> {
     let files_dir = out.join("files");
     let _ = std::fs::remove_dir_all(&files_dir);
     for (rel, src) in &built.self_hosted {
-        let dest = files_dir.join(rel);
+        let sha1 = &built
+            .manifest
+            .files
+            .iter()
+            .find(|f| &f.path == rel)
+            .expect("self-hosted files are in the manifest")
+            .sha1;
+        let dest = files_dir.join(pack_builder::hosted_path(sha1, rel));
         std::fs::create_dir_all(dest.parent().expect("has parent"))?;
         std::fs::copy(src, &dest)?;
     }

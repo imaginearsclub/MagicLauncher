@@ -1,7 +1,7 @@
 //! Shared logic for `pack-builder` (writes an upload folder) and `pack-publisher`
 //! (uploads straight to S3): turn a Prism / Modrinth App / CurseForge instance (folder or
 //! zip) into a `PackManifest` for Fabric. Jars that Modrinth knows by hash point at Modrinth's CDN; every
-//! other file is self-hosted under `<base_url>/files/<path>`.
+//! other file is self-hosted under `<base_url>/files/<sha1>/<path>` (see [`hosted_path`]).
 //!
 //! The input is only ever READ; nothing in the source instance is modified.
 
@@ -90,7 +90,8 @@ impl BuildOptions {
 
 pub struct Built {
     pub manifest: PackManifest,
-    /// Self-hosted files: (relative path, file on disk). Upload each to `<base>/files/<path>`.
+    /// Self-hosted files: (relative path, file on disk). Upload each to
+    /// `<base>/files/<hosted_path>` (see [`hosted_path`]).
     pub self_hosted: Vec<(String, PathBuf)>,
     /// Things worth a look that don't stop publishing (also sent to `log`).
     pub warnings: Vec<String>,
@@ -242,7 +243,7 @@ pub async fn build(opts: BuildOptions) -> Result<Built, BoxError> {
             Some(u) => u.clone(),
             None => {
                 self_hosted.push((rel.clone(), path.clone()));
-                format!("{base}/files/{}", encode_path(&rel))
+                format!("{base}/files/{}", encode_path(&hosted_path(&sha1, &rel)))
             }
         };
         let mod_id = (rel.starts_with("mods/") && rel.ends_with(".jar"))
@@ -295,6 +296,14 @@ pub fn policy_for(rel: &str, default: &[String], managed: &[String]) -> FilePoli
         (Some(_), None) => FilePolicy::Default,
         _ => FilePolicy::Managed,
     }
+}
+
+/// Where a self-hosted file lives under `files/`: `<sha1>/<path>`. Content-addressed, so
+/// publishing a changed file never overwrites the object the live `pack.json` still points
+/// to (a failed or half-finished publish leaves the live pack intact), and an unchanged file
+/// keeps its URL. Old objects stay in the bucket.
+pub fn hosted_path(sha1: &str, rel: &str) -> String {
+    format!("{sha1}/{rel}")
 }
 
 /// Percent-encodes each path segment for use in a URL. S3 object keys use the raw path.
@@ -422,6 +431,15 @@ mod tests {
         assert!(is_junk("mods/old.jar.outdated"));
         assert!(!is_junk("config/sodium-options.json"));
         assert!(!is_junk("shaderpacks/ComplementaryReimagined_r5.7.1.zip"));
+    }
+
+    #[test]
+    fn hosted_paths_change_with_content() {
+        assert_eq!(
+            hosted_path("ab12", "config/iris.properties"),
+            "ab12/config/iris.properties"
+        );
+        assert_ne!(hosted_path("ab12", "a.jar"), hosted_path("cd34", "a.jar"));
     }
 
     #[test]

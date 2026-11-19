@@ -27,7 +27,7 @@ the pack is about the best park experience.
       "path": "config/iris.properties",
       "sha1": "…",
       "size": 200,
-      "url": "https://launcher.imaginears.club/files/config/iris.properties",
+      "url": "https://launcher.imaginears.club/files/5b10…a6ff64f8/config/iris.properties",
       "policy": "default"
     }
   ]
@@ -81,6 +81,11 @@ cargo run -p pack-builder --release -- \
   are copied to `dist-pack/files/` to be uploaded. The tool lists every self-hosted file:
   **check each license allows redistribution** before uploading (some CurseForge-only mods
   forbid it).
+- Self-hosted files are **content-addressed**: `files/<sha1>/<path>`. A changed file gets a
+  new address, so a publish never overwrites a file the live `pack.json` still points to; a
+  failed or half-finished publish leaves the live pack working. Unchanged files keep their
+  address and aren't uploaded again. Old versions stay in the bucket (they're small; clean
+  up by hand if ever needed).
 - Upload `dist-pack/pack.json` and `dist-pack/files/` to the base URL (or use the publisher).
 
 ## Publishing (production)

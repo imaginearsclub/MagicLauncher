@@ -103,8 +103,10 @@ pub async fn download_one(client: &reqwest::Client, d: &Download) -> Result<()> 
     if let Some(dir) = d.dest.parent() {
         tokio::fs::create_dir_all(dir).await?;
     }
-    // Write to a temp file then rename, so a crash never leaves a half-written jar.
-    let tmp = d.dest.with_extension("part");
+    // Write to a temp file then rename, so a crash never leaves a half-written jar. The temp
+    // name keeps the whole file name (`a.json.part`, `a.toml.part`): files that differ only in
+    // extension download in parallel and must not share one.
+    let tmp = part_path(&d.dest);
     tokio::fs::write(&tmp, &bytes).await?;
     tokio::fs::rename(&tmp, &d.dest).await?;
     Ok(())
@@ -137,4 +139,22 @@ pub async fn download_all(
         .await;
 
     results.into_iter().collect()
+}
+
+/// `dir/name.ext` -> `dir/name.ext.part`.
+fn part_path(dest: &std::path::Path) -> std::path::PathBuf {
+    let mut name = dest.file_name().unwrap_or_default().to_os_string();
+    name.push(".part");
+    dest.with_file_name(name)
+}
+
+#[cfg(test)]
+mod part_tests {
+    #[test]
+    fn temp_names_keep_the_extension() {
+        let a = super::part_path(std::path::Path::new("config/example.json"));
+        let b = super::part_path(std::path::Path::new("config/example.toml"));
+        assert_ne!(a, b);
+        assert_eq!(a, std::path::Path::new("config/example.json.part"));
+    }
 }

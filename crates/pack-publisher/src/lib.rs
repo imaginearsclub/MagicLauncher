@@ -149,8 +149,10 @@ pub struct Prepared {
 
 impl Prepared {
     /// Nothing to publish: the live pack already matches the instance.
+    /// Nothing to publish: same files as the live pack, and every self-hosted file is
+    /// already at its URL (a new bucket layout or a missing upload counts as a change).
     pub fn unchanged(&self) -> bool {
-        self.diff.as_ref().is_some_and(Diff::is_empty)
+        self.diff.as_ref().is_some_and(Diff::is_empty) && self.uploads.is_empty()
     }
 }
 
@@ -287,7 +289,15 @@ pub async fn publish(
     stream::iter(p.uploads.iter().map(Ok::<_, BoxError>))
         .try_for_each_concurrent(6, |(rel, path)| {
             let (s3, bucket, done) = (&s3, &target.bucket, &done);
-            let key = format!("{prefix}/files/{rel}");
+            let sha1 = p
+                .built
+                .manifest
+                .files
+                .iter()
+                .find(|f| &f.path == rel)
+                .map(|f| f.sha1.as_str())
+                .unwrap_or_default();
+            let key = format!("{prefix}/files/{}", pack_builder::hosted_path(sha1, rel));
             async move {
                 put(s3, bucket, &key, path, content_type(rel), None)
                     .await
@@ -330,7 +340,9 @@ pub async fn publish(
     Ok(())
 }
 
-/// Self-hosted files that are new, changed, or were previously served from Modrinth.
+/// Self-hosted files the live pack doesn't already serve at the same URL: new, changed
+/// (new content = new content-addressed URL), previously from Modrinth, or from an older
+/// bucket layout.
 pub fn files_to_upload(
     built: &Built,
     live: Option<&PackManifest>,
@@ -347,7 +359,9 @@ pub fn files_to_upload(
             let new = built.manifest.files.iter().find(|f| &f.path == rel);
             let old = live.and_then(|l| l.files.iter().find(|f| &f.path == rel));
             match (new, old) {
-                (Some(n), Some(o)) => n.sha1 != o.sha1 || !o.url.starts_with(base),
+                (Some(n), Some(o)) => {
+                    n.sha1 != o.sha1 || n.url != o.url || !o.url.starts_with(base)
+                }
                 _ => true,
             }
         })
@@ -731,6 +745,20 @@ mod tests {
             ),
             file("mods/was-mr.jar", "1", "https://cdn.modrinth.com/x.jar"),
         ]);
+        // Same content but the live pack serves it from another URL (older bucket layout):
+        // upload it to the new address too.
+        let mut moved = built.manifest.clone();
+        moved.files[0].url = "https://pack.example/files/1/mods/same.jar".into();
+        let moved_built = Built {
+            manifest: moved,
+            self_hosted: built.self_hosted.clone(),
+            warnings: vec![],
+        };
+        let up_moved: Vec<_> = files_to_upload(&moved_built, Some(&live), b, false)
+            .into_iter()
+            .map(|(r, _)| r)
+            .collect();
+        assert!(up_moved.contains(&"mods/same.jar".to_string()));
         let up: Vec<_> = files_to_upload(&built, Some(&live), b, false)
             .into_iter()
             .map(|(r, _)| r)

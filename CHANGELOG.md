@@ -25,3 +25,10 @@ Breaking.
 
 ### Fixed
 - Server status picks the SRV record by priority and weight instead of the first one.
+- A temporary Microsoft sign-in outage (rate limit, 5xx) no longer signs the player out;
+  only an expired or revoked login does.
+- Files that differ only in extension (`a.json`, `a.toml`) no longer share a temporary file
+  while downloading in parallel.
+- Publishing a changed self-hosted file no longer overwrites the copy the live pack uses:
+  files are stored under `files/<sha1>/<path>`. The publisher also publishes when only the
+  storage layout changed.
