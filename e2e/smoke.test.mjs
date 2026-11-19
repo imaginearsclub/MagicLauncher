@@ -119,7 +119,7 @@ async function pressEscape() {
 }
 
 before(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), "su-e2e-"));
+  dataDir = mkdtempSync(join(tmpdir(), "magic-e2e-"));
   // Answer the telemetry question up front so its dialog doesn't cover the screen.
   writeFileSync(join(dataDir, "settings.json"), JSON.stringify({ telemetry: false }));
 
@@ -224,6 +224,21 @@ describe("launcher", () => {
       { timeoutMsg: "text size did not go back to 100%" },
     );
   });
+
+  // Opt-in: E2E_SCREENSHOTS=1 saves the main screens to e2e/artifacts/ for a visual check.
+  if (process.env.E2E_SCREENSHOTS) {
+    check("screenshots of the main screens", async () => {
+      mkdirSync(ARTIFACTS, { recursive: true });
+      await browser.saveScreenshot(join(ARTIFACTS, "screen-play.png"));
+      await (await browser.$("button=Mods & Shaders")).click();
+      await (await browser.$("h2=Mods & Shaders")).waitForDisplayed();
+      await browser.saveScreenshot(join(ARTIFACTS, "screen-mods.png"));
+      await (await browser.$('button[title="Play"]')).click();
+      await openSettings();
+      await browser.saveScreenshot(join(ARTIFACTS, "screen-settings.png"));
+      await pressEscape();
+    });
+  }
 
   check("the Custom mod picker lists and filters the optional mods", async () => {
     await openSettings();

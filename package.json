@@ -13,10 +13,14 @@
     "e2e": "node --test --test-concurrency=1 e2e/*.test.mjs"
   },
   "dependencies": {
+    "@fontsource/cinzel-decorative": "5.3.0",
+    "@fontsource/spline-sans-mono": "5.3.0",
+    "@fontsource/varela-round": "5.3.0",
     "@sentry/svelte": "11.14.0",
     "@tauri-apps/api": "^2.12.5"
   },
   "devDependencies": {
+    "@material-symbols/svg-400": "0.48.2",
     "@sentry/cli": "3.8.2",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tauri-apps/cli": "^2.12.5",

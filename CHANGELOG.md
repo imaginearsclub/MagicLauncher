@@ -17,5 +17,11 @@ Breaking.
   with `--minecraft` / `--fabric`) and blocks publishing when a mod needs another Fabric
   Loader or Minecraft version.
 
+- New look from the MagicLauncher design system: top bar with live server status, side
+  navigation, a launch cockpit on the Play screen, and a Mods & Shaders screen to pick a
+  graphics preset or switch optional mods on and off.
+- Title bar in the launcher's colours: midnight navy on Windows 11, dark on Windows 10 and
+  Linux, and on macOS the top bar runs under the window buttons (drag the top bar to move).
+
 ### Fixed
 - Server status picks the SRV record by priority and weight instead of the first one.

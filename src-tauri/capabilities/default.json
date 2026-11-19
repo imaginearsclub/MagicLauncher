@@ -3,5 +3,9 @@
   "identifier": "default",
   "description": "Permissions for the main launcher window.",
   "windows": ["main"],
-  "permissions": ["core:default", "core:webview:allow-set-webview-zoom"]
+  "permissions": [
+    "core:default",
+    "core:webview:allow-set-webview-zoom",
+    "core:window:allow-start-dragging"
+  ]
 }

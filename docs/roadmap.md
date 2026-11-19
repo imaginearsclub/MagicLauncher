@@ -54,9 +54,13 @@ Decisions are recorded here so they don't have to be re-asked. Full plan (2026-1
 - [x] **Real install + launch** (2026-11-19, Windows): local pack.json (1.21.11, Fabric 0.20.1,
       Fabric API, Sodium) → prepare + offline launch loads both mods and the client's
       resources in ~18 s. Rerun: `cargo test -p launcher-core --test live_launch -- --ignored`
-- [ ] **UI**: Stitch tokens in `src/app.css`, fonts + icons bundled locally (CSP-safe),
-      `App.svelte` split into views/components; Play cockpit, Launch progress, Settings,
-      Mods & Shaders, Account switcher
+- [x] **UI** (2026-11-19): Stitch tokens in `src/app.css`; fonts (@fontsource) and Material
+      Symbols (inline SVG) bundled, CSP unchanged; state in `src/lib/app.svelte.ts`, shell =
+      TopBar (server pill, account switcher) + NavRail + StatusBar; views Play (launch
+      cockpit, progress, server + modpack cards) and Mods & Shaders (preset cards, optional
+      mod switches, saved instantly); Settings sheet and mod picker kept. e2e 6/6 + opt-in
+      screenshots (`E2E_SCREENSHOTS=1 pnpm e2e`)
+- [ ] Check the signed-in Play screen and account menu once Mojang approves sign-in
 - [x] Pack round trip (2026-11-19): Prism test instance → `--channel alpha` publish (only
       iris.properties self-hosted, rest Modrinth CDN) → launcher installs + boots it (6 mods,
       shader). Still to do: CurseForge instance, release rehearsal

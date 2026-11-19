@@ -2,6 +2,7 @@
 
 mod discord;
 mod monitoring;
+mod titlebar;
 mod updates;
 
 use launcher_core::auth::{self, DeviceCode, Profile, Session};
@@ -594,6 +595,9 @@ pub fn run() {
                 pending_update: Mutex::new(None),
                 last_crash_log: std::sync::Mutex::new(None),
             });
+            if let Some(window) = app.get_webview_window("main") {
+                titlebar::apply(&window);
+            }
             let state = app.state::<AppState>();
             state.presence(discord::Presence::Launcher);
             let settings = Settings::load(&state.paths.settings());
