@@ -6,3 +6,4 @@
 # Pushing a change to main publishes the signed list (publish-allowlist.yml); players see
 # the Alpha option on their next launcher start. Remove a line to revoke access.
 Clarkcj  # developer
+Disneykid93  # alpha tester
