@@ -7,16 +7,31 @@ Breaking.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-24
+
+First release of MagicLauncher for every Imaginears Club player: Microsoft sign-in, the
+Imaginears Magic Pack on Minecraft 26.3, and the Release, Beta and Alpha channels. It includes
+everything from 0.1.0-alpha.1 below.
+
+### Added
+- Real Microsoft sign-in: Mojang approved the launcher's Azure app (2026-11-24). Signed-in
+  players see their account and skin in the top bar and join the server with their own
+  account.
+
 ### Changed
 - The launcher joins and pings the server at `iears.us`, the server's own address, instead of
   `imaginears.club`, which only redirected to it.
 - The Imaginears Magic Pack is on Minecraft 26.3 (pack 2.0.0 on the Alpha channel, Java 25).
   No launcher change was needed; docs and the live launch test now use 26.3.
+- Updated Tauri to 2.12.7 (tauri-build 2.7.6), clap 4.6.9 and zip 9.8.0.
 
 ### Fixed
 - When no modpack is published for the selected channel, the Play and Mods & Shaders screens
   now say so instead of "Couldn't check for pack updates", which is kept for real failures
   (offline, server errors).
+
+### Breaking
+- None. Installs of 0.1.0-alpha.1 update in place.
 
 ## [0.1.0-alpha.1] - 2026-11-19
 

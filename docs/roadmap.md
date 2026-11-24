@@ -73,8 +73,10 @@ Decisions are recorded here so they don't have to be re-asked. Full plan (2026-1
 - [x] Pack round trip (2026-11-19): Prism test instance → `--channel alpha` publish (only
       iris.properties self-hosted, rest Modrinth CDN) → launcher installs + boots it (6 mods,
       shader). Still to do: CurseForge instance, release rehearsal
-- [ ] Verify: offline launch to title
-      screen, release rehearsal `v0.1.0-alpha.1` on all three OSes
+- [x] Verify: offline launch to title screen (live_launch, 2026-11-24 on 26.3), release
+      rehearsal `v0.1.0-alpha.1` on all three OSes (2026-11-19)
+- [ ] Release `v0.1.0` (prepared 2026-11-24): tag, publish the draft, then publish the
+      Release pack (and Beta) from the 26.3 instance
 
 ## Later minors
 - 0.2 Showtimes & Parks (StatusPage public JSON; no website API key in the app)
