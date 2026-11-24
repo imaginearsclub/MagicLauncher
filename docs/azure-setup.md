@@ -6,10 +6,11 @@ Club, and Mojang must approve the app before it may call the Minecraft services 
 "Play offline (dev)" button so installs and launches can be tested locally (the Imaginears
 server runs in online mode and rejects offline profiles; that's expected).
 
-Status (2026-11-19): **registered**, public client flows on, Mojang review requested; client ID `693dce49-2443-4b96-8912-d1b353b81fcd`
-(built-in default of `MS_CLIENT_ID` in `crates/launcher-core/src/config.rs`). Until Mojang
-approves it, sign-in gets as far as Xbox Live and then fails at the Minecraft login with
-`403` / "Invalid app registration".
+Status (2026-11-24): **approved by Mojang**, real sign-in works. Client ID
+`693dce49-2443-4b96-8912-d1b353b81fcd` (built-in default of `MS_CLIENT_ID` in
+`crates/launcher-core/src/config.rs`); registered and review requested 2026-11-19. Before
+approval, sign-in got as far as Xbox Live and then failed at the Minecraft login with
+`403` / "Invalid app registration"; a new app ID would go through the same review.
 
 ## 1. Register the Azure app
 

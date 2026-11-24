@@ -7,6 +7,12 @@ Breaking.
 
 ## [Unreleased]
 
+### Changed
+- The launcher joins and pings the server at `iears.us`, the server's own address, instead of
+  `imaginears.club`, which only redirected to it.
+- The Imaginears Magic Pack is on Minecraft 26.3 (pack 2.0.0 on the Alpha channel, Java 25).
+  No launcher change was needed; docs and the live launch test now use 26.3.
+
 ### Fixed
 - When no modpack is published for the selected channel, the Play and Mods & Shaders screens
   now say so instead of "Couldn't check for pack updates", which is kept for real failures

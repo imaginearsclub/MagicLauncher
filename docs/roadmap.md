@@ -8,8 +8,12 @@ Decisions are recorded here so they don't have to be re-asked. Full plan (2026-1
 - MagicLauncher is its **own project**. The launcher it was ported from is a code reference
   only: no shared repo, bucket, CDN, keys, Azure app, Sentry/Aptabase/Discord apps, runners or
   branding. `scripts/separation-patterns.txt` + the CI `separation` job enforce it.
-- Game: **Fabric on Minecraft 1.21.11**. The live server reports "MC 1.21.11+" and asks
-  for 1.21.11 or above (2026-11-19; first planned as 1.21.10 from an outdated README).
+- Game: **Fabric on Minecraft 26.3**. The server moved to 26.3 on 2026-11-24 and the pack
+  followed (pack 2.0.0, Java 25). Before that it was 1.21.11 (2026-11-19; first planned as
+  1.21.10 from an outdated README).
+- Pack mods are pinned to versions that accept each other: Sodium **0.9.2**, not 0.9.3,
+  because Sodium 0.9.3 refuses Iris up to 1.12.0 and the newest Iris for 26.3 is 1.11.7
+  (2026-11-24). Check `breaks` / `depends` in `fabric.mod.json` before bumping either.
 - Hosting: the **existing Imaginears S3 bucket** + CloudFront.
 - PackPublisher reads **Prism / Modrinth App and CurseForge** instances. Shader packs and
   resource packs ship in the pack; datapacks don't (they live on the server).
@@ -19,8 +23,8 @@ Decisions are recorded here so they don't have to be re-asked. Full plan (2026-1
 ## Waiting on (outside the code)
 - [x] Azure app registered (client ID `693dce49-…`, built in, 2026-11-19)
 - [x] Public client flows enabled; device-code request accepted by Microsoft (2026-11-19)
-- [ ] **Mojang approval**: requested 2026-11-19. Blocks real sign-in (Minecraft login returns
-      403 until approved); debug builds can play offline meanwhile.
+- [x] **Mojang approval**: requested 2026-11-19, approved 2026-11-24. Real sign-in checked the
+      same day (account and skin in the top bar, joined the server on the Alpha channel).
 - [x] Bucket: `magiclauncher` (same AWS account as the other launcher, 2026-11-19; publisher
       default set). Pack owner's IAM user: `magiclauncherpublisher`.
 - [x] CDN: CloudFront `E2AZL86MSJLTJV` → `https://launcher.imaginears.club` (ACM cert, Cloudflare
@@ -29,7 +33,8 @@ Decisions are recorded here so they don't have to be re-asked. Full plan (2026-1
 - [x] Origin path `/pack` confirmed; `magiclauncherpublisher` policy works (write to pack paths,
       denied elsewhere, invalidation OK; test file `pack/files/permission-check.txt`, 2026-11-19)
 - [x] AWS_* secrets are the CI user `magiclauncher-ci` (policy in docs/releasing.md), 2026-11-19
-- [x] Connect address: `imaginears.club` (SRV → the real host; checked 2026-11-19).
+- [x] Connect address: `iears.us` (SRV → `play.iears.us`; the server's own address, switched
+      from `imaginears.club` on 2026-11-24, whose SRV only points at it).
 - [x] Repo secrets set (2026-11-19): TAURI_SIGNING_PRIVATE_KEY (+ empty _PASSWORD),
       ALLOWLIST_SIGNING_KEY, AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY; optional SENTRY_AUTH_TOKEN
 - [ ] Optional services (each feature stays off until set): Sentry projects, Aptabase app,
@@ -60,7 +65,11 @@ Decisions are recorded here so they don't have to be re-asked. Full plan (2026-1
       cockpit, progress, server + modpack cards) and Mods & Shaders (preset cards, optional
       mod switches, saved instantly); Settings sheet and mod picker kept. e2e 6/6 + opt-in
       screenshots (`E2E_SCREENSHOTS=1 pnpm e2e`)
-- [ ] Check the signed-in Play screen and account menu once Mojang approves sign-in
+- [x] Signed-in Play screen and account menu (2026-11-24, after Mojang approval)
+- [x] **Minecraft 26.3** (2026-11-24): alpha pack 2.0.0 (Fabric Loader 0.20.1, Fabric API
+      0.166.2, Sodium 0.9.2, Iris 1.11.7, LambDynamicLights 4.13.0, Mod Menu 21.0.1,
+      SmoothCoasters 26.3-v1). Boots through the launcher (Java 25 downloaded) and joins the
+      server. No launcher code change was needed.
 - [x] Pack round trip (2026-11-19): Prism test instance → `--channel alpha` publish (only
       iris.properties self-hosted, rest Modrinth CDN) → launcher installs + boots it (6 mods,
       shader). Still to do: CurseForge instance, release rehearsal

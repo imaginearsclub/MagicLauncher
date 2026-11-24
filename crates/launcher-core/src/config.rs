@@ -87,9 +87,11 @@ pub fn data_dir_override() -> Option<std::path::PathBuf> {
 }
 
 /// The Imaginears Club server players join (default port 25565 / SRV record).
+/// `iears.us` is the server's own address (SRV → `play.iears.us`); `imaginears.club` only
+/// points at it through an SRV record that also lists a host which never answers.
 pub const SERVER_ADDRESS: &str = match option_env!("MAGIC_SERVER") {
     Some(v) if !v.is_empty() => v,
-    _ => "imaginears.club",
+    _ => "iears.us",
 };
 
 /// Per-user settings, stored as `settings.json` in the app data directory.

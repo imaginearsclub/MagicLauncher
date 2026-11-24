@@ -18,12 +18,12 @@ use launcher_core::channel::Channel;
 use launcher_core::config::Settings;
 use launcher_core::paths::Paths;
 use launcher_core::progress::{Progress, ProgressFn};
-use launcher_core::{http_client, launch, pipeline};
+use launcher_core::{http_client, launch, pack, pipeline};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-const MC: &str = "1.21.11";
+const MC: &str = "26.3";
 const FABRIC: &str = "0.20.1";
 
 /// A pack file entry for the newest Fabric build of a Modrinth project for `MC`.
@@ -103,6 +103,12 @@ async fn installs_and_boots_fabric_pack() {
         Ok(u) if !u.is_empty() => u,
         _ => serve(manifest.to_string()).await,
     };
+    // The versions to expect in the game log come from the pack actually booted, so a
+    // published pack on another Minecraft version is checked against its own versions.
+    let booted = pack::fetch_manifest(&client, &url)
+        .await
+        .expect("pack.json");
+    let (mc, fabric) = (booted.minecraft, booted.loader.version);
 
     let progress: ProgressFn = Arc::new(|p: Progress| {
         if p.done == 0 || p.done == p.total {
@@ -140,7 +146,7 @@ async fn installs_and_boots_fabric_pack() {
     let _ = std::fs::remove_file(&latest);
     let mut child = launch::spawn(&paths, &prepared.spec, &session).expect("spawn");
 
-    let fabric_line = format!("Loading Minecraft {MC} with Fabric Loader {FABRIC}");
+    let fabric_line = format!("Loading Minecraft {mc} with Fabric Loader {fabric}");
     let started = Instant::now();
     let (mut saw_fabric, mut saw_loaded) = (false, false);
     while started.elapsed() < Duration::from_secs(240) {
@@ -168,7 +174,7 @@ async fn installs_and_boots_fabric_pack() {
         latest.display()
     );
     println!(
-        "Fabric {FABRIC} on Minecraft {MC} booted to resource load in {:?}",
+        "Fabric {fabric} on Minecraft {mc} booted to resource load in {:?}",
         started.elapsed()
     );
 }
