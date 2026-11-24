@@ -209,24 +209,36 @@ struct PackOverview {
     features: Vec<launcher_core::pack::Feature>,
 }
 
+/// Result of checking the published pack, for the home screen.
+#[derive(Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+enum PackCheck {
+    Ready(Box<PackOverview>),
+    /// Nothing published for this channel (nor Release, which it falls back to).
+    NotPublished,
+    /// Offline, server error or unreadable pack; Play still works with what's installed.
+    Unreachable,
+}
+
 /// Installed vs published pack for the effective channel, for the home screen.
-/// `None` when the pack can't be fetched (offline); Play still works with what's installed.
 #[tauri::command]
-async fn pack_overview(state: State<'_, AppState>) -> Result<Option<PackOverview>> {
+async fn pack_overview(state: State<'_, AppState>) -> Result<PackCheck> {
     let channel = updates::status(&state).await.effective;
     let url = pack_url();
-    let Ok(m) = launcher_core::pack::fetch_manifest_for(&state.client, &url, channel).await else {
-        return Ok(None);
+    let m = match launcher_core::pack::fetch_manifest_for(&state.client, &url, channel).await {
+        Ok(m) => m,
+        Err(Error::PackNotPublished(_)) => return Ok(PackCheck::NotPublished),
+        Err(_) => return Ok(PackCheck::Unreachable),
     };
     let installed = launcher_core::pack::Lock::load(&state.paths.instance(channel)).pack_version;
-    Ok(Some(PackOverview {
+    Ok(PackCheck::Ready(Box::new(PackOverview {
         update_available: installed.as_ref() != Some(&m.version),
         installed: installed.map(|v| v.to_string()),
         latest: m.version.to_string(),
         changes: m.changes,
         presets: m.presets,
         features: m.features,
-    }))
+    })))
 }
 
 /// The Release pack URL (dev builds may override it with MAGIC_PACK_URL at runtime).

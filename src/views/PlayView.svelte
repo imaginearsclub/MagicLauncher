@@ -44,6 +44,8 @@
           {#if app.pack}
             <span class="mono">Pack {app.pack.latest}</span>
             {#if app.pack.installed && !app.pack.update_available}<span class="mono ok">· up to date</span>{/if}
+          {:else if app.packState === "not_published"}
+            <span class="mono muted">No pack on this channel yet</span>
           {:else}
             <span class="mono muted">Pack not checked yet</span>
           {/if}
@@ -183,8 +185,12 @@
             <Icon name="tune" size={16} />Mods &amp; shaders
           </button>
         {/if}
-      {:else}
+      {:else if app.packState === "not_published"}
+        <p class="muted">No modpack has been published on this channel yet.</p>
+      {:else if app.packState === "unreachable"}
         <p class="muted">Couldn't check for pack updates.</p>
+      {:else}
+        <p class="muted">Checking for pack updates…</p>
       {/if}
     </div>
   </aside>

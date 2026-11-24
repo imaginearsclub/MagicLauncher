@@ -7,6 +7,11 @@ Breaking.
 
 ## [Unreleased]
 
+### Fixed
+- When no modpack is published for the selected channel, the Play and Mods & Shaders screens
+  now say so instead of "Couldn't check for pack updates", which is kept for real failures
+  (offline, server errors).
+
 ## [0.1.0-alpha.1] - 2026-11-19
 
 First test build (Alpha channel only). Release rehearsal for 0.1.0.

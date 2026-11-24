@@ -191,9 +191,7 @@ pub async fn fetch_manifest(client: &reqwest::Client, url: &str) -> Result<PackM
     let resp = client.get(url).send().await?;
     // CloudFront in front of a private bucket answers 403 (not 404) for a missing object.
     if matches!(resp.status().as_u16(), 403 | 404) {
-        return Err(Error::other(format!(
-            "no modpack has been published yet ({url} not found). Please try again later."
-        )));
+        return Err(Error::PackNotPublished(url.to_string()));
     }
     parse_manifest(&resp.error_for_status()?.bytes().await?)
 }

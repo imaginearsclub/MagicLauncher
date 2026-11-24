@@ -30,7 +30,11 @@
   </div>
 
   {#if !app.pack || !app.settings}
-    <p class="muted">The modpack hasn't been checked yet.</p>
+    <p class="muted">
+      {app.packState === "not_published"
+        ? "No modpack has been published on this channel yet."
+        : "The modpack hasn't been checked yet."}
+    </p>
   {:else}
     {#if app.pack.presets.length}
       <section aria-labelledby="presets-title">
