@@ -1,8 +1,8 @@
 # Pack manifest (`pack.json`, format 1)
 
 The launcher downloads one JSON file on every launch and makes the game folder match it.
-For Imaginears Club it is the **Imaginears Magic Pack**: Fabric on Minecraft 1.21.11 (the
-server asks for 1.21.11 or newer), with performance, park and show mods (Sodium, Iris + shaders,
+For Imaginears Club it is the **Imaginears Magic Pack**: Fabric on Minecraft 26.3 (the
+server's version since 2026-11-24), with performance, park and show mods (Sodium, Iris + shaders,
 SmoothCoasters, LambDynamicLights, ...). The server is Paper, so no mod is required to join;
 the pack is about the best park experience.
 
@@ -12,15 +12,15 @@ the pack is about the best park experience.
   "id": "imaginears-magic-pack",
   "name": "Imaginears Magic Pack",
   "version": "1.0.0",
-  "minecraft": "1.21.11",
+  "minecraft": "26.3",
   "loader": { "type": "fabric", "version": "0.20.1" },
   "recommended_memory_mb": 4096,
   "files": [
     {
-      "path": "mods/sodium-fabric-0.7.2+mc1.21.11.jar",
+      "path": "mods/sodium-fabric-0.9.2+mc26.3.jar",
       "sha1": "…",
       "size": 1300000,
-      "url": "https://cdn.modrinth.com/data/…/sodium-fabric-0.7.2+mc1.21.11.jar",
+      "url": "https://cdn.modrinth.com/data/…/sodium-fabric-0.9.2+mc26.3.jar",
       "policy": "managed"
     },
     {
