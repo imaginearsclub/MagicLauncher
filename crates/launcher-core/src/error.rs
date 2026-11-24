@@ -20,6 +20,10 @@ pub enum Error {
     NotSignedIn,
     #[error("unsafe path in pack manifest: {0}")]
     UnsafePath(String),
+    /// No `pack.json` at the URL (CloudFront answers 403 for a missing object). Not a
+    /// failure of the player's network: nothing has been published there yet.
+    #[error("no modpack has been published yet ({0} not found). Please try again later.")]
+    PackNotPublished(String),
     #[error("{0}")]
     Other(String),
 }
@@ -44,6 +48,7 @@ impl Error {
             Error::Auth(_) => "auth",
             Error::NotSignedIn => "not_signed_in",
             Error::UnsafePath(_) => "unsafe_path",
+            Error::PackNotPublished(_) => "pack_not_published",
             Error::Other(_) => "other",
         }
     }

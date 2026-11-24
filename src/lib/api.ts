@@ -119,6 +119,11 @@ export interface PackOverview {
   features: PackFeature[];
 }
 
+export type PackCheck =
+  | ({ status: "ready" } & PackOverview)
+  | { status: "not_published" }
+  | { status: "unreachable" };
+
 export interface MaintenanceStatus {
   maintenance: boolean;
   message: string | null;
@@ -154,7 +159,7 @@ export const api = {
   /** `null` = server offline/unreachable. */
   serverStatus: () => invoke<ServerStatus | null>("server_status"),
   /** `null` = pack couldn't be fetched (offline). */
-  packOverview: () => invoke<PackOverview | null>("pack_overview"),
+  packOverview: () => invoke<PackCheck>("pack_overview"),
   maintenanceStatus: () => invoke<MaintenanceStatus>("maintenance_status"),
   /** Re-verify and fix all game files for the current channel; resolves to the pack version. */
   repair: () => invoke<string>("repair"),

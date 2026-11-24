@@ -17,6 +17,7 @@ import {
   type CrashInfo,
   type DeviceCode,
   type MaintenanceStatus,
+  type PackCheck,
   type PackOverview,
   type Profile,
   type Progress,
@@ -59,6 +60,8 @@ class AppState {
   server = $state<ServerStatus | null>(null);
   serverChecked = $state(false);
   pack = $state<PackOverview | null>(null);
+  /** Why `pack` is null: not checked yet, nothing published for the channel, or unreachable. */
+  packState = $state<"unchecked" | "not_published" | "unreachable" | "ready">("unchecked");
   maintenance = $state<MaintenanceStatus | null>(null);
   accountList = $state<Accounts | null>(null);
   update = $state<UpdateInfo | null>(null);
@@ -160,10 +163,10 @@ class AppState {
     api
       .packOverview()
       .then((p) => {
-        this.pack = p;
+        this.setPack(p);
         this.maybePredownload();
       })
-      .catch(() => (this.pack = null));
+      .catch(() => this.setPack({ status: "unreachable" }));
     api
       .maintenanceStatus()
       .then((m) => (this.maintenance = m))
@@ -172,6 +175,11 @@ class AppState {
     // current head on a failed lookup instead of flashing back to the letter.
     if (this.profile) api.skinUrl().then((u) => (this.skin = u)).catch(() => {});
     else this.skin = null;
+  }
+
+  setPack(p: PackCheck) {
+    this.packState = p.status;
+    this.pack = p.status === "ready" ? p : null;
   }
 
   /** Pack update available and the launcher idle: download it now so Play starts at once. */
@@ -185,7 +193,7 @@ class AppState {
       const v = await api.prepareUpdate();
       if (v) {
         this.notice = `Pack ${v} is downloaded and ready.`;
-        this.pack = await api.packOverview();
+        this.setPack(await api.packOverview());
       }
     } catch (e) {
       // Not fatal: Play will try again and show the error then.
