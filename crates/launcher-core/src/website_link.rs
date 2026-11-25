@@ -12,10 +12,26 @@ use crate::config::WEBSITE_URL;
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 const SESSION_JOIN: &str = "https://sessionserver.mojang.com/session/minecraft/join";
 const TIMEOUT: Duration = Duration::from_secs(20);
+
+/// These requests carry the link token or the Minecraft access token, so they never follow
+/// redirects: a redirect to another host would hand it the token.
+fn client() -> &'static reqwest::Client {
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .user_agent(format!("MagicLauncher/{}", crate::VERSION))
+            .connect_timeout(Duration::from_secs(15))
+            .timeout(TIMEOUT)
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .expect("failed to build HTTP client")
+    })
+}
 
 /// What the confirmation prompt shows about the website side of the link.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -108,12 +124,11 @@ pub(crate) fn linked_name_from_reply(status: u16, body: &str) -> Result<String> 
 }
 
 /// Looks up which website account a link belongs to. Doesn't use the token up.
-pub async fn challenge(client: &reqwest::Client, token: &str) -> Result<Challenge> {
+pub async fn challenge(token: &str) -> Result<Challenge> {
     check_token(token)?;
-    let res = client
+    let res = client()
         .get(format!("{WEBSITE_URL}/api/minecraft/link/challenge"))
         .query(&[("token", token)])
-        .timeout(TIMEOUT)
         .send()
         .await?;
     let status = res.status().as_u16();
@@ -122,15 +137,14 @@ pub async fn challenge(client: &reqwest::Client, token: &str) -> Result<Challeng
 
 /// Tells Mojang this account is "joining" `server_id`, so the website's `hasJoined` check
 /// can confirm it. Mojang answers 204 on success.
-async fn session_join(client: &reqwest::Client, session: &Session, server_id: &str) -> Result<()> {
-    let res = client
+async fn session_join(session: &Session, server_id: &str) -> Result<()> {
+    let res = client()
         .post(SESSION_JOIN)
         .json(&json!({
             "accessToken": session.access_token,
             "selectedProfile": session.profile.uuid.replace('-', ""),
             "serverId": server_id,
         }))
-        .timeout(TIMEOUT)
         .send()
         .await?;
     match res.status().as_u16() {
@@ -143,19 +157,24 @@ async fn session_join(client: &reqwest::Client, session: &Session, server_id: &s
     }
 }
 
+/// The website may already have linked the account when its reply is lost, and the token is
+/// used up by then, so a retry would only report it as expired.
+const REPLY_LOST: &str = "Couldn't hear back from the website. Check Profile > Connections on the      website: if your account shows Verified, you're done. Otherwise start again there.";
+
 /// Proves ownership of the signed-in account to the website and links it. Uses the token up.
 /// Call only after the player confirmed the prompt.
-pub async fn link(client: &reqwest::Client, session: &Session, token: &str) -> Result<String> {
+pub async fn link(session: &Session, token: &str) -> Result<String> {
     check_token(token)?;
-    session_join(client, session, token).await?;
-    let res = client
+    session_join(session, token).await?;
+    let res = client()
         .post(format!("{WEBSITE_URL}/api/minecraft/link/complete"))
         .json(&json!({ "token": token, "username": session.profile.name }))
-        .timeout(TIMEOUT)
         .send()
-        .await?;
+        .await
+        .map_err(|_| Error::other(REPLY_LOST))?;
     let status = res.status().as_u16();
-    linked_name_from_reply(status, &res.text().await?)
+    let body = res.text().await.map_err(|_| Error::other(REPLY_LOST))?;
+    linked_name_from_reply(status, &body)
 }
 
 #[cfg(test)]

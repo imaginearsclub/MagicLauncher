@@ -39,9 +39,9 @@ impl Action {
     }
 }
 
-/// `link/<token>` (nothing after the token but an optional `/`) with a valid token.
+/// `link/<token>` (nothing after the token but one optional `/`) with a valid token.
 fn link_action(rest: &str) -> Action {
-    let token = rest.trim_end_matches('/');
+    let token = rest.strip_suffix('/').unwrap_or(rest);
     if is_valid_token(token) {
         Action::Link {
             token: token.to_string(),
@@ -59,9 +59,9 @@ pub fn parse(url: &Url) -> Option<Action> {
     // `imaginears://play` puts the action in the host; `imaginears:play` in the path.
     // `rest` is what follows the action (`<token>` for `imaginears://link/<token>`).
     let (name, rest) = match url.host_str().filter(|h| !h.is_empty()) {
-        Some(host) => (host, url.path().trim_start_matches('/')),
+        Some(host) => (host, url.path().strip_prefix('/').unwrap_or(url.path())),
         None => {
-            let path = url.path().trim_start_matches('/');
+            let path = url.path().strip_prefix('/').unwrap_or(url.path());
             path.split_once('/').unwrap_or((path, ""))
         }
     };
@@ -137,6 +137,16 @@ mod tests {
             Some(Action::Open)
         );
         assert_eq!(p("imaginears://link/..%2F..%2Fapi"), Some(Action::Open));
+        // Exactly one optional slash after the token, none extra before it.
+        assert_eq!(
+            p(&format!("imaginears://link//{TOKEN}")),
+            Some(Action::Open)
+        );
+        assert_eq!(
+            p(&format!("imaginears://link/{TOKEN}//")),
+            Some(Action::Open)
+        );
+        assert_eq!(p(&format!("imaginears:link//{TOKEN}")), Some(Action::Open));
     }
 
     #[test]

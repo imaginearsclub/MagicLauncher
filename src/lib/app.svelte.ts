@@ -94,6 +94,8 @@ class AppState {
   showModPicker = $state(false);
   showAccounts = $state(false);
   linkDialog = $state<LinkDialog | null>(null);
+  /** Bumped when a link starts or the dialog closes; results of older requests are dropped. */
+  private linkRequest = 0;
   offlineName = $state("Dev");
 
   percent = $derived(
@@ -312,11 +314,14 @@ class AppState {
 
   /** Shows who would be linked. Nothing is linked until the player confirms. */
   async startLink(token: string) {
+    const request = ++this.linkRequest;
     this.linkDialog = { step: "loading" };
     try {
       const prompt = await api.linkPrompt(token);
+      if (request !== this.linkRequest) return;
       this.linkDialog = { step: "confirm", token, prompt };
     } catch (e) {
+      if (request !== this.linkRequest) return;
       const message = String(e);
       const signIn = /not signed in/i.test(message);
       this.linkDialog = {
@@ -332,22 +337,31 @@ class AppState {
   async confirmLink() {
     const d = this.linkDialog;
     if (d?.step !== "confirm") return;
+    const request = this.linkRequest;
     this.linkDialog = { ...d, step: "linking" };
     try {
-      const minecraftName = await api.linkConfirm(d.token);
-      this.linkDialog = { step: "done", minecraftName };
+      const minecraftName = await api.linkConfirm(d.token, d.prompt.minecraft_uuid);
+      if (request === this.linkRequest) this.linkDialog = { step: "done", minecraftName };
     } catch (e) {
-      this.linkDialog = { step: "error", message: String(e), signIn: false };
+      if (request === this.linkRequest) this.linkDialog = { step: "error", message: String(e), signIn: false };
     }
   }
 
+  /** Not while linking: the website call is already under way and its result should show. */
   closeLink() {
-    if (this.linkDialog?.step !== "linking") this.linkDialog = null;
+    if (this.linkDialog?.step === "linking") return;
+    this.linkRequest++;
+    this.linkDialog = null;
   }
 
+  /** "Sign in" in the link dialog: start the Microsoft sign-in from the Play screen. */
   signInForLink() {
-    this.linkDialog = null;
-    this.showAccounts = true;
+    this.closeLink();
+    this.showSettings = false;
+    this.showModPicker = false;
+    this.showAccounts = false;
+    this.view = "play";
+    void this.signIn();
   }
 
   // ---- playing ----

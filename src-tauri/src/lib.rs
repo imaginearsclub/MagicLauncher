@@ -94,6 +94,8 @@ fn handle_links(app: &AppHandle, urls: &[tauri::Url]) {
 struct LinkPrompt {
     website_account: String,
     minecraft_name: String,
+    /// Passed back to `link_confirm`, so it links exactly the account the player saw.
+    minecraft_uuid: String,
     expires_in_seconds: u64,
 }
 
@@ -101,20 +103,31 @@ struct LinkPrompt {
 #[tauri::command]
 async fn link_prompt(state: State<'_, AppState>, token: String) -> Result<LinkPrompt> {
     let session = active_session(&state).await?;
-    let challenge = website_link::challenge(&state.client, &token).await?;
+    let challenge = website_link::challenge(&token).await?;
     Ok(LinkPrompt {
         website_account: challenge.website_account,
         minecraft_name: session.profile.name,
+        minecraft_uuid: session.profile.uuid,
         expires_in_seconds: challenge.expires_in_seconds,
     })
 }
 
 /// The player confirmed the prompt: prove the account to the website and link it.
-/// Returns the linked Minecraft name.
+/// `minecraft_uuid` is the account the prompt showed; if the active account changed since
+/// (e.g. a switch finished in between), nothing is linked. Returns the linked Minecraft name.
 #[tauri::command]
-async fn link_confirm(state: State<'_, AppState>, token: String) -> Result<String> {
+async fn link_confirm(
+    state: State<'_, AppState>,
+    token: String,
+    minecraft_uuid: String,
+) -> Result<String> {
     let session = active_session(&state).await?;
-    let result = website_link::link(&state.client, &session, &token).await;
+    if session.profile.uuid != minecraft_uuid {
+        return Err(Error::other(
+            "The signed-in Minecraft account changed. Start again from the website.",
+        ));
+    }
+    let result = website_link::link(&session, &token).await;
     state.track(
         "website_link",
         serde_json::json!({ "ok": result.is_ok(), "error": result.as_ref().err().map(|e| e.category()) }),
