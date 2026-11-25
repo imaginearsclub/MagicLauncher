@@ -7,6 +7,13 @@ Breaking.
 
 ## [Unreleased]
 
+### Added
+- Website links: `imaginears://play` opens the launcher on the Play screen (starting it if
+  it's closed), `imaginears://open` just opens it. Links never start the game by themselves.
+  See [docs/deep-links.md](docs/deep-links.md) for the website button.
+- Only one launcher runs at a time: opening it again (or a link) brings the open window to
+  the front.
+
 ### Fixed
 - PackPublisher no longer ships `options.txt`, `servers.dat` or Sodium's
   `config/sodium-fingerprint.json` from the source instance. The game writes them for whoever

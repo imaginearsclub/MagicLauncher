@@ -8,6 +8,7 @@ import {
   DOWNLOAD_PAGE,
   onGameCrashed,
   onGameExited,
+  onDeepLink,
   onProgress,
   onUpdateProgress,
   type Accounts,
@@ -116,7 +117,10 @@ class AppState {
         this.notice = null;
         this.refreshHome();
       }),
+      onDeepLink(() => this.openDeepLink()),
     ];
+    // The launcher may have been started by a link before this UI was listening.
+    this.openDeepLink();
     (async () => {
       this.info = await api.appInfo();
       this.settings = await api.getSettings();
@@ -275,6 +279,20 @@ class AppState {
     this.skin = null;
     await this.refreshChannel();
     this.refreshHome();
+  }
+
+  // ---- website links ----
+
+  /** Apply a waiting `imaginears://` action. Never starts the game: the player clicks Play. */
+  async openDeepLink() {
+    const action = await api.takeDeepLink().catch(() => null);
+    if (action === "play") {
+      this.showSettings = false;
+      this.showModPicker = false;
+      this.showAccounts = false;
+      this.view = "play";
+      this.refreshServer();
+    }
   }
 
   // ---- playing ----
