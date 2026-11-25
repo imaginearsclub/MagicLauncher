@@ -8,7 +8,8 @@ keep them up to date, and join the server. Windows, macOS and Linux.
 
 Built with Tauri v2, Vite and Svelte 5 on a Rust core.
 
-> Status: **0.1.0 in development.** See [docs/roadmap.md](docs/roadmap.md).
+> Status: **0.2.0** (website links). See [CHANGELOG.md](CHANGELOG.md) and
+> [docs/roadmap.md](docs/roadmap.md).
 
 ## Layout
 

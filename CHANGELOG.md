@@ -9,8 +9,9 @@ Breaking.
 
 ## [0.2.0] - 2026-11-25
 
-Website links: buttons on the Imaginears Club website can open the launcher and verify your
-Minecraft account. Only one launcher runs at a time.
+Website links: the launcher now opens `imaginears://` links, so the Imaginears Club website
+can open it and verify your Minecraft account. The website's buttons go live after this
+release. Only one launcher runs at a time.
 
 ### Added
 - Website links: `imaginears://play` opens the launcher on the Play screen (starting it if
@@ -33,8 +34,9 @@ Minecraft account. Only one launcher runs at a time.
   and install ID.
 
 ### Breaking
-- None. Installs of 0.1.0 update in place, and the update registers the `imaginears://`
-  link type (see [docs/deep-links.md](docs/deep-links.md)).
+- None. Windows, macOS and AppImage installs of 0.1.0 update in place; Linux `.deb`/`.rpm`
+  installs show the "download the new version" message and update by reinstalling. The
+  update registers the `imaginears://` link type (see [docs/deep-links.md](docs/deep-links.md)).
 
 ## [0.1.0] - 2026-11-24
 
