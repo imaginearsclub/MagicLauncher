@@ -141,6 +141,9 @@ export interface Progress {
   total: number;
 }
 
+/** What an `imaginears://` link asks for (see src-tauri/src/deeplink.rs). */
+export type DeepLinkAction = "open" | "play";
+
 export const api = {
   appInfo: () => invoke<AppInfo>("app_info"),
   account: () => invoke<Profile | null>("account"),
@@ -176,6 +179,8 @@ export const api = {
   checkUpdate: (goBack = false) => invoke<UpdateInfo | null>("check_update", { goBack }),
   /** Installs the update from the last check, then the launcher restarts. */
   installUpdate: () => invoke<void>("install_update"),
+  /** The `imaginears://` action waiting for the UI (taken once), or null. */
+  takeDeepLink: () => invoke<DeepLinkAction | null>("take_deep_link"),
 };
 
 export const DOWNLOAD_PAGE = "https://launcher.imaginears.club/launcher/download/index.html";
@@ -188,6 +193,9 @@ export const onProgress = (cb: (p: Progress) => void): Promise<UnlistenFn> =>
 
 export const onGameCrashed = (cb: (c: CrashInfo) => void): Promise<UnlistenFn> =>
   listen<CrashInfo>("game-crashed", (e) => cb(e.payload));
+
+/** An `imaginears://` link was opened; call `api.takeDeepLink()` for its action. */
+export const onDeepLink = (cb: () => void): Promise<UnlistenFn> => listen("deep-link", () => cb());
 
 export const onGameExited = (cb: (code: number | null) => void): Promise<UnlistenFn> =>
   listen<number | null>("game-exited", (e) => cb(e.payload));

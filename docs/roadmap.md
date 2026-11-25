@@ -79,6 +79,8 @@ Decisions are recorded here so they don't have to be re-asked. Full plan (2026-1
       Release pack (and Beta) from the 26.3 instance
 
 ## Later minors
+- 0.2 Website links (`imaginears://play`, `imaginears://open`) and single instance (2026-11-25,
+  `feat/deep-links`)
 - 0.2 Showtimes & Parks (StatusPage public JSON; no website API key in the app)
 - 0.3 Screenshot gallery (local `screenshots/`)
 - 0.4 Audio & radio (OpenAudioMC web client / radio stream)

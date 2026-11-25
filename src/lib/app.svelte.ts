@@ -8,6 +8,7 @@ import {
   DOWNLOAD_PAGE,
   onGameCrashed,
   onGameExited,
+  onDeepLink,
   onProgress,
   onUpdateProgress,
   type Accounts,
@@ -117,6 +118,11 @@ class AppState {
         this.refreshHome();
       }),
     ];
+    // Take the waiting action only once the listener is registered: a link that arrives in
+    // between would otherwise emit to nobody and wait until the next link.
+    const deepLink = onDeepLink(() => this.openDeepLink());
+    unlisten.push(deepLink);
+    deepLink.then(() => this.openDeepLink());
     (async () => {
       this.info = await api.appInfo();
       this.settings = await api.getSettings();
@@ -275,6 +281,20 @@ class AppState {
     this.skin = null;
     await this.refreshChannel();
     this.refreshHome();
+  }
+
+  // ---- website links ----
+
+  /** Apply a waiting `imaginears://` action. Never starts the game: the player clicks Play. */
+  async openDeepLink() {
+    const action = await api.takeDeepLink().catch(() => null);
+    if (action === "play") {
+      this.showSettings = false;
+      this.showModPicker = false;
+      this.showAccounts = false;
+      this.view = "play";
+      this.refreshServer();
+    }
   }
 
   // ---- playing ----
