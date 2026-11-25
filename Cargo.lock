@@ -2959,7 +2959,7 @@ dependencies = [
 
 [[package]]
 name = "launcher-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.23.1",
  "futures-util",
@@ -3091,7 +3091,7 @@ checksum = "4050469837a6ff301cd14c1f8f24f88549e6d548f24f64e2148eb0f72cebc51f"
 
 [[package]]
 name = "magiclauncher"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "discord-rich-presence",
  "launcher-core",
@@ -3723,7 +3723,7 @@ checksum = "1a80800c0488c3a21695ea981a54918fbb37abf04f4d0720c453632255e2ff0e"
 
 [[package]]
 name = "pack-builder"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "launcher-core",
@@ -3739,7 +3739,7 @@ dependencies = [
 
 [[package]]
 name = "pack-publisher"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aws-sdk-cloudfront",
  "aws-sdk-s3",
@@ -4101,7 +4101,7 @@ dependencies = [
 
 [[package]]
 name = "publisher-gui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "launcher-core",
  "pack-builder",

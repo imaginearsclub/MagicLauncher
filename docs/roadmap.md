@@ -75,14 +75,19 @@ Decisions are recorded here so they don't have to be re-asked. Full plan (2026-1
       shader). Still to do: CurseForge instance, release rehearsal
 - [x] Verify: offline launch to title screen (live_launch, 2026-11-24 on 26.3), release
       rehearsal `v0.1.0-alpha.1` on all three OSes (2026-11-19)
-- [ ] Release `v0.1.0` (prepared 2026-11-24): tag, publish the draft, then publish the
-      Release pack (and Beta) from the 26.3 instance
+- [x] Release `v0.1.0` (2026-11-25): tagged and published; Release, Beta and Alpha packs at
+      2.1.0 from the CurseForge instance
+
+## 0.2.0 (MINOR, 2026-11-25)
+- [x] Website links (`imaginears://play`, `imaginears://open`) and single instance (#13)
+- [x] Verify the Minecraft account on the website (`imaginears://link/<token>`, #14). Pulled
+      forward from 0.5 MagicPass: the website starts the flow, so no device/OAuth flow needed
+- [x] Account menu above the server card (#15); PackPublisher skips player files (#12)
+- [ ] Release `v0.2.0`: tag, publish the draft, then add the website buttons
 
 ## Later minors
-- 0.2 Website links (`imaginears://play`, `imaginears://open`) and single instance (2026-11-25,
-  `feat/deep-links`)
-- 0.2 Showtimes & Parks (StatusPage public JSON; no website API key in the app)
-- 0.3 Screenshot gallery (local `screenshots/`)
-- 0.4 Audio & radio (OpenAudioMC web client / radio stream)
-- 0.5 MagicPass: website account link (needs a device/OAuth flow in imaginears-web first)
-- 0.6 Park guide / teleports, Cast Member tools (staff-gated, after MagicPass)
+- 0.3 Showtimes & Parks (StatusPage public JSON; no website API key in the app)
+- 0.4 Screenshot gallery (local `screenshots/`)
+- 0.5 Audio & radio (OpenAudioMC web client / radio stream)
+- 0.6 MagicPass: more website account features on top of the 0.2 account link
+- 0.7 Park guide / teleports, Cast Member tools (staff-gated, after MagicPass)

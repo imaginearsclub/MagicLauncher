@@ -7,6 +7,12 @@ Breaking.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-25
+
+Website links: the launcher now opens `imaginears://` links, so the Imaginears Club website
+can open it and verify your Minecraft account. The website's buttons go live after this
+release. Only one launcher runs at a time.
+
 ### Added
 - Website links: `imaginears://play` opens the launcher on the Play screen (starting it if
   it's closed), `imaginears://open` just opens it. Links never start the game by themselves.
@@ -26,6 +32,11 @@ Breaking.
   `config/sodium-fingerprint.json` from the source instance. The game writes them for whoever
   played that instance, so they would have become every new player's settings, server list
   and install ID.
+
+### Breaking
+- None. Windows, macOS and AppImage installs of 0.1.0 update in place; Linux `.deb`/`.rpm`
+  installs show the "download the new version" message and update by reinstalling. The
+  update registers the `imaginears://` link type (see [docs/deep-links.md](docs/deep-links.md)).
 
 ## [0.1.0] - 2026-11-24
 
