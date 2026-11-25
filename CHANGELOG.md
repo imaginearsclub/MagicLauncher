@@ -20,6 +20,8 @@ Breaking.
   the front.
 
 ### Fixed
+- The account menu no longer opens behind the server status card on the Play screen, which
+  hid some of its options.
 - PackPublisher no longer ships `options.txt`, `servers.dat` or Sodium's
   `config/sodium-fingerprint.json` from the source instance. The game writes them for whoever
   played that instance, so they would have become every new player's settings, server list

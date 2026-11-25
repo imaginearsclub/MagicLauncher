@@ -93,6 +93,11 @@ main {
   border-bottom: 1px solid var(--line);
   background: rgb(9 13 22 / 0.88);
   backdrop-filter: blur(10px);
+  /* backdrop-filter makes the bar its own stacking context, which traps the account menu's
+     z-index inside it; lift the whole bar above the page panels (they blur too) but keep it
+     under modal overlays (z-index 20). */
+  position: relative;
+  z-index: 15;
 }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .logo { width: 36px; height: 36px; object-fit: contain; filter: drop-shadow(0 2px 8px rgb(0 0 0 / 0.5)); }
