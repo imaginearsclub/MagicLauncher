@@ -23,6 +23,7 @@ pub mod rules;
 pub mod skin;
 pub mod status;
 pub mod telemetry;
+pub mod website_link;
 
 pub use error::{Error, Result};
 

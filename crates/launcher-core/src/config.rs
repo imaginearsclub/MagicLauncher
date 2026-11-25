@@ -94,6 +94,14 @@ pub const SERVER_ADDRESS: &str = match option_env!("MAGIC_SERVER") {
     _ => "iears.us",
 };
 
+/// The Imaginears Club website. Account linking only ever talks to this origin; it's never
+/// taken from an `imaginears://` link. Dev builds can point it at a local site with
+/// `MAGIC_WEBSITE_URL=http://localhost:3000`.
+pub const WEBSITE_URL: &str = match option_env!("MAGIC_WEBSITE_URL") {
+    Some(v) if !v.is_empty() => v,
+    _ => "https://imaginears.club",
+};
+
 /// Per-user settings, stored as `settings.json` in the app data directory.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]

@@ -1,31 +1,53 @@
 //! `imaginears://` links, so a button on the website can open the launcher.
 //!
 //! Any web page can send these links, so they only ever select from a fixed set of actions
-//! and never start the game: `imaginears://play` opens the Play screen, and the player still
-//! clicks Play. Everything else in the URL (query, extra path) is ignored. An unknown action
-//! (a link made for a newer launcher) just opens the launcher.
+//! and never start the game or act on the player's account by themselves:
+//! `imaginears://play` opens the Play screen (the player still clicks Play), and
+//! `imaginears://link/<token>` opens a prompt asking whether to link the signed-in account to
+//! the website (nothing happens until the player confirms). Everything else in the URL (query,
+//! extra path) is ignored. An unknown action, or a `link` with a malformed token, just opens
+//! the launcher.
 
+use launcher_core::website_link::is_valid_token;
 use serde::Serialize;
 use tauri::Url;
 
 /// Registered in `tauri.conf.json` (`plugins.deep-link.desktop.schemes`).
 pub const SCHEME: &str = "imaginears";
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
+/// Sent to the UI as `{ "action": "play" }` or `{ "action": "link", "token": "…" }`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "action", rename_all = "snake_case")]
 pub enum Action {
     /// Open or focus the launcher.
     Open,
     /// Open the launcher on the Play screen, ready to join the server.
     Play,
+    /// Ask the player whether to verify their Minecraft account on the website.
+    /// `token` is always 40 lowercase hex characters.
+    Link { token: String },
 }
 
 impl Action {
-    pub fn as_str(self) -> &'static str {
+    /// For telemetry: never includes the token.
+    pub fn as_str(&self) -> &'static str {
         match self {
             Action::Open => "open",
             Action::Play => "play",
+            Action::Link { .. } => "link",
         }
+    }
+}
+
+/// `link/<token>` (nothing after the token but an optional `/`) with a valid token.
+fn link_action(rest: &str) -> Action {
+    let token = rest.trim_end_matches('/');
+    if is_valid_token(token) {
+        Action::Link {
+            token: token.to_string(),
+        }
+    } else {
+        Action::Open
     }
 }
 
@@ -35,17 +57,17 @@ pub fn parse(url: &Url) -> Option<Action> {
         return None;
     }
     // `imaginears://play` puts the action in the host; `imaginears:play` in the path.
-    let name = url
-        .host_str()
-        .filter(|h| !h.is_empty())
-        .unwrap_or_else(|| url.path())
-        .trim_matches('/')
-        .split('/')
-        .next()
-        .unwrap_or("")
-        .to_ascii_lowercase();
-    Some(match name.as_str() {
+    // `rest` is what follows the action (`<token>` for `imaginears://link/<token>`).
+    let (name, rest) = match url.host_str().filter(|h| !h.is_empty()) {
+        Some(host) => (host, url.path().trim_start_matches('/')),
+        None => {
+            let path = url.path().trim_start_matches('/');
+            path.split_once('/').unwrap_or((path, ""))
+        }
+    };
+    Some(match name.to_ascii_lowercase().as_str() {
         "play" => Action::Play,
+        "link" => link_action(rest),
         _ => Action::Open,
     })
 }
@@ -76,6 +98,68 @@ mod tests {
         assert_eq!(p("imaginears://"), Some(Action::Open));
         assert_eq!(p("imaginears://show/fireworks"), Some(Action::Open));
         assert_eq!(p("imaginears://launch-game-now"), Some(Action::Open));
+    }
+
+    const TOKEN: &str = "0123456789abcdef0123456789abcdef01234567";
+
+    #[test]
+    fn link_carries_a_valid_token() {
+        let link = Some(Action::Link {
+            token: TOKEN.to_string(),
+        });
+        assert_eq!(p(&format!("imaginears://link/{TOKEN}")), link);
+        assert_eq!(p(&format!("imaginears://link/{TOKEN}/")), link);
+        assert_eq!(p(&format!("IMAGINEARS://LINK/{TOKEN}")), link);
+        assert_eq!(p(&format!("imaginears:link/{TOKEN}")), link);
+        // The query is ignored: links can't pick the website or account.
+        assert_eq!(
+            p(&format!(
+                "imaginears://link/{TOKEN}?site=https://evil.example&user=x"
+            )),
+            link
+        );
+    }
+
+    #[test]
+    fn link_with_a_bad_token_just_opens() {
+        assert_eq!(p("imaginears://link"), Some(Action::Open));
+        assert_eq!(p("imaginears://link/"), Some(Action::Open));
+        assert_eq!(
+            p(&format!("imaginears://link/{}", TOKEN.to_uppercase())),
+            Some(Action::Open)
+        );
+        assert_eq!(
+            p(&format!("imaginears://link/{}", &TOKEN[..39])),
+            Some(Action::Open)
+        );
+        assert_eq!(
+            p(&format!("imaginears://link/{TOKEN}/extra")),
+            Some(Action::Open)
+        );
+        assert_eq!(p("imaginears://link/..%2F..%2Fapi"), Some(Action::Open));
+    }
+
+    #[test]
+    fn telemetry_name_never_contains_the_token() {
+        let link = Action::Link {
+            token: TOKEN.to_string(),
+        };
+        assert_eq!(link.as_str(), "link");
+    }
+
+    #[test]
+    fn ui_receives_tagged_json() {
+        let link = Action::Link {
+            token: TOKEN.to_string(),
+        };
+        assert_eq!(
+            serde_json::to_string(&link).unwrap(),
+            format!(r#"{{"action":"link","token":"{TOKEN}"}}"#)
+        );
+        assert_eq!(
+            serde_json::to_string(&Action::Play).unwrap(),
+            r#"{"action":"play"}"#
+        );
     }
 
     #[test]

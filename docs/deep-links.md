@@ -7,8 +7,10 @@ Code: `src-tauri/src/deeplink.rs`.
 |---|---|
 | `imaginears://play` | Opens the launcher (starts it if it's closed) on the Play screen, ready to join `iears.us`. The player still clicks **Play**. |
 | `imaginears://open` | Opens or focuses the launcher. |
+| `imaginears://link/<token>` | Asks the player whether to verify their signed-in Minecraft account on the website (see below). Nothing happens until they confirm. |
 
-Any web page can send these links, so they only pick from this list and never start the game.
+Any web page can send these links, so they only pick from this list, never start the game, and
+never act on the player's account without asking.
 Unknown actions (a link made for a newer launcher) just open the launcher; anything after the
 action (path, query) is ignored.
 
@@ -22,6 +24,25 @@ action (path, query) is ignored.
 - **Linux**: the `.deb`/`.rpm` desktop entry; the AppImage registers itself on start.
 
 Players on 0.1.0 get the scheme with the update that adds it.
+
+## Verifying a Minecraft account (`link`)
+
+The website's **Verify with MagicLauncher** button opens `imaginears://link/<token>`. The token
+is 40 lowercase hex characters; a link with anything else just opens the launcher.
+
+1. The launcher asks the website which account the token belongs to
+   (`GET {WEBSITE_URL}/api/minecraft/link/challenge`) and shows **"Link Minecraft account X to
+   website account Y?"**. Anyone can send these links, including with *their own* website
+   account's token, so the prompt shows both names and the player must confirm.
+2. After **Link account**, the launcher makes a Mojang session `join` with `serverId = token`
+   (the call the game makes when joining a server), then calls
+   `POST {WEBSITE_URL}/api/minecraft/link/complete`. The website checks Mojang's `hasJoined`.
+
+The Minecraft access token only goes to Mojang. The website origin is built in
+(`launcher_core::config::WEBSITE_URL`, default `https://imaginears.club`) and never taken from
+the link. To test against a local site, build with `MAGIC_WEBSITE_URL=http://localhost:3000`.
+Code: `crates/launcher-core/src/website_link.rs`. Website side: imaginears-web
+`docs/minecraft-account-linking.md`.
 
 ## Website button
 

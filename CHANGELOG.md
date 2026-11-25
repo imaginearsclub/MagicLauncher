@@ -11,6 +11,11 @@ Breaking.
 - Website links: `imaginears://play` opens the launcher on the Play screen (starting it if
   it's closed), `imaginears://open` just opens it. Links never start the game by themselves.
   See [docs/deep-links.md](docs/deep-links.md) for the website button.
+- Verify your Minecraft account on the Imaginears Club website: the website's **Verify with
+  MagicLauncher** button opens `imaginears://link/<token>`, the launcher shows which Minecraft
+  account and which website account would be linked, and links them only after you confirm.
+  Ownership is proven through Mojang's session server; your Minecraft login is never sent to
+  the website. Staff need a verified account to sign in to Utilidor.
 - Only one launcher runs at a time: opening it again (or a link) brings the open window to
   the front.
 
