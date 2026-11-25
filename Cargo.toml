@@ -12,7 +12,7 @@ members = [
 # Every crate inherits it, and tauri.conf.json deliberately has no `version`
 # so the bundle (msi/dmg/AppImage/deb) falls back to this value too.
 [workspace.package]
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 edition = "2021"
 rust-version = "1.94"
 publish = false
