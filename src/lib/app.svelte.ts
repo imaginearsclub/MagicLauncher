@@ -17,6 +17,7 @@ import {
   type ChannelStatus,
   type CrashInfo,
   type DeviceCode,
+  type LinkPrompt,
   type MaintenanceStatus,
   type PackCheck,
   type PackOverview,
@@ -50,6 +51,13 @@ export const CHANNEL_LABEL: Record<Channel, string> = { release: "Release", beta
 const STATUS_REFRESH_MS = 60_000;
 
 export type View = "play" | "mods";
+
+/** The "link your Minecraft account to the website" prompt, opened by `imaginears://link/…`. */
+export type LinkDialog =
+  | { step: "loading" }
+  | { step: "confirm" | "linking"; token: string; prompt: LinkPrompt }
+  | { step: "done"; minecraftName: string }
+  | { step: "error"; message: string; signIn: boolean };
 
 class AppState {
   // ---- data from the launcher ----
@@ -85,6 +93,9 @@ class AppState {
   showSettings = $state(false);
   showModPicker = $state(false);
   showAccounts = $state(false);
+  linkDialog = $state<LinkDialog | null>(null);
+  /** Bumped when a link starts or the dialog closes; results of older requests are dropped. */
+  private linkRequest = 0;
   offlineName = $state("Dev");
 
   percent = $derived(
@@ -288,13 +299,69 @@ class AppState {
   /** Apply a waiting `imaginears://` action. Never starts the game: the player clicks Play. */
   async openDeepLink() {
     const action = await api.takeDeepLink().catch(() => null);
-    if (action === "play") {
+    if (action?.action === "link") {
+      await this.startLink(action.token);
+    } else if (action?.action === "play") {
       this.showSettings = false;
       this.showModPicker = false;
       this.showAccounts = false;
       this.view = "play";
       this.refreshServer();
     }
+  }
+
+  // ---- linking the account to the website ----
+
+  /** Shows who would be linked. Nothing is linked until the player confirms. */
+  async startLink(token: string) {
+    const request = ++this.linkRequest;
+    this.linkDialog = { step: "loading" };
+    try {
+      const prompt = await api.linkPrompt(token);
+      if (request !== this.linkRequest) return;
+      this.linkDialog = { step: "confirm", token, prompt };
+    } catch (e) {
+      if (request !== this.linkRequest) return;
+      const message = String(e);
+      const signIn = /not signed in/i.test(message);
+      this.linkDialog = {
+        step: "error",
+        signIn,
+        message: signIn
+          ? "Sign in to the launcher first, then click Verify on the website again."
+          : message,
+      };
+    }
+  }
+
+  async confirmLink() {
+    const d = this.linkDialog;
+    if (d?.step !== "confirm") return;
+    const request = this.linkRequest;
+    this.linkDialog = { ...d, step: "linking" };
+    try {
+      const minecraftName = await api.linkConfirm(d.token, d.prompt.minecraft_uuid);
+      if (request === this.linkRequest) this.linkDialog = { step: "done", minecraftName };
+    } catch (e) {
+      if (request === this.linkRequest) this.linkDialog = { step: "error", message: String(e), signIn: false };
+    }
+  }
+
+  /** Not while linking: the website call is already under way and its result should show. */
+  closeLink() {
+    if (this.linkDialog?.step === "linking") return;
+    this.linkRequest++;
+    this.linkDialog = null;
+  }
+
+  /** "Sign in" in the link dialog: start the Microsoft sign-in from the Play screen. */
+  signInForLink() {
+    this.closeLink();
+    this.showSettings = false;
+    this.showModPicker = false;
+    this.showAccounts = false;
+    this.view = "play";
+    void this.signIn();
   }
 
   // ---- playing ----

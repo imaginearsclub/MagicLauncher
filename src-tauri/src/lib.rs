@@ -10,7 +10,7 @@ use launcher_core::auth::{self, DeviceCode, Profile, Session};
 use launcher_core::config::{self, Settings};
 use launcher_core::paths::Paths;
 use launcher_core::progress::{Progress, ProgressFn};
-use launcher_core::{crash, maintenance, pipeline, status, Error, Result};
+use launcher_core::{crash, maintenance, pipeline, status, website_link, Error, Result};
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -82,12 +82,57 @@ fn handle_links(app: &AppHandle, urls: &[tauri::Url]) {
     focus_main(app);
     let state = app.state::<AppState>();
     state.link_during_launch.store(true, Ordering::SeqCst);
+    let name = action.as_str();
     *state.pending_link.lock().unwrap_or_else(|e| e.into_inner()) = Some(action);
-    state.track(
-        "deep_link_opened",
-        serde_json::json!({ "action": action.as_str() }),
-    );
+    state.track("deep_link_opened", serde_json::json!({ "action": name }));
     let _ = app.emit("deep-link", ());
+}
+
+/// What the "link your account" prompt shows: the website account the link belongs to and
+/// the Minecraft account that would be linked.
+#[derive(Serialize)]
+struct LinkPrompt {
+    website_account: String,
+    minecraft_name: String,
+    /// Passed back to `link_confirm`, so it links exactly the account the player saw.
+    minecraft_uuid: String,
+    expires_in_seconds: u64,
+}
+
+/// Details for the prompt after an `imaginears://link/<token>` link. Changes nothing.
+#[tauri::command]
+async fn link_prompt(state: State<'_, AppState>, token: String) -> Result<LinkPrompt> {
+    let session = active_session(&state).await?;
+    let challenge = website_link::challenge(&token).await?;
+    Ok(LinkPrompt {
+        website_account: challenge.website_account,
+        minecraft_name: session.profile.name,
+        minecraft_uuid: session.profile.uuid,
+        expires_in_seconds: challenge.expires_in_seconds,
+    })
+}
+
+/// The player confirmed the prompt: prove the account to the website and link it.
+/// `minecraft_uuid` is the account the prompt showed; if the active account changed since
+/// (e.g. a switch finished in between), nothing is linked. Returns the linked Minecraft name.
+#[tauri::command]
+async fn link_confirm(
+    state: State<'_, AppState>,
+    token: String,
+    minecraft_uuid: String,
+) -> Result<String> {
+    let session = active_session(&state).await?;
+    if session.profile.uuid != minecraft_uuid {
+        return Err(Error::other(
+            "The signed-in Minecraft account changed. Start again from the website.",
+        ));
+    }
+    let result = website_link::link(&session, &token).await;
+    state.track(
+        "website_link",
+        serde_json::json!({ "ok": result.is_ok(), "error": result.as_ref().err().map(|e| e.category()) }),
+    );
+    result
 }
 
 /// The `imaginears://` action waiting for the UI, if any (taken once).
@@ -327,16 +372,19 @@ async fn open_game_folder(app: AppHandle, state: State<'_, AppState>) -> Result<
         .map_err(|e| Error::other(e.to_string()))
 }
 
+/// The active account's session, refreshed first if it has expired.
+async fn active_session(state: &AppState) -> Result<Session> {
+    let mut guard = state.session.lock().await;
+    if guard.as_ref().is_none_or(|s| s.is_expired()) {
+        let active = auth::Accounts::load(&state.paths.accounts()).active;
+        *guard = Some(auth::refresh(&state.client, active.as_deref()).await?);
+    }
+    guard.clone().ok_or(Error::NotSignedIn)
+}
+
 #[tauri::command]
 async fn play(app: AppHandle, state: State<'_, AppState>) -> Result<String> {
-    let session = {
-        let mut guard = state.session.lock().await;
-        if guard.as_ref().is_none_or(|s| s.is_expired()) {
-            let active = auth::Accounts::load(&state.paths.accounts()).active;
-            *guard = Some(auth::refresh(&state.client, active.as_deref()).await?);
-        }
-        guard.clone().ok_or(Error::NotSignedIn)?
-    };
+    let session = active_session(&state).await?;
     // Enforced here too, not just in the UI. Alpha testers may play to test the update.
     let m = maintenance::current(&state.client).await;
     if m.maintenance && !updates::status(&state).await.alpha_allowed {
@@ -737,7 +785,9 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         updates::channel_status,
         updates::check_update,
         updates::install_update,
-        take_deep_link
+        take_deep_link,
+        link_prompt,
+        link_confirm
     ]
 }
 
@@ -768,6 +818,8 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         updates::channel_status,
         updates::check_update,
         updates::install_update,
-        take_deep_link
+        take_deep_link,
+        link_prompt,
+        link_confirm
     ]
 }

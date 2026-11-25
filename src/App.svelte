@@ -3,6 +3,7 @@
   import { app } from "./lib/app.svelte";
   import Banners from "./components/Banners.svelte";
   import ConsentDialog from "./components/ConsentDialog.svelte";
+  import LinkAccountDialog from "./components/LinkAccountDialog.svelte";
   import ModPicker from "./components/ModPicker.svelte";
   import NavRail from "./components/NavRail.svelte";
   import SettingsSheet from "./components/SettingsSheet.svelte";
@@ -36,4 +37,5 @@
   {/if}
   {#if app.showModPicker}<ModPicker />{/if}
   {#if app.showSettings}<SettingsSheet />{/if}
+  {#if app.linkDialog}<LinkAccountDialog />{/if}
 </main>

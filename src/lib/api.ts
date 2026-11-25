@@ -142,7 +142,15 @@ export interface Progress {
 }
 
 /** What an `imaginears://` link asks for (see src-tauri/src/deeplink.rs). */
-export type DeepLinkAction = "open" | "play";
+export type DeepLinkAction = { action: "open" } | { action: "play" } | { action: "link"; token: string };
+
+/** Shown before linking the signed-in Minecraft account to a website account. */
+export interface LinkPrompt {
+  website_account: string;
+  minecraft_name: string;
+  minecraft_uuid: string;
+  expires_in_seconds: number;
+}
 
 export const api = {
   appInfo: () => invoke<AppInfo>("app_info"),
@@ -181,6 +189,11 @@ export const api = {
   installUpdate: () => invoke<void>("install_update"),
   /** The `imaginears://` action waiting for the UI (taken once), or null. */
   takeDeepLink: () => invoke<DeepLinkAction | null>("take_deep_link"),
+  /** Who an `imaginears://link/<token>` link would link. Changes nothing. */
+  linkPrompt: (token: string) => invoke<LinkPrompt>("link_prompt", { token }),
+  /** After the player confirmed: verify the account with Mojang and link it. Resolves to the name. */
+  linkConfirm: (token: string, minecraftUuid: string) =>
+    invoke<string>("link_confirm", { token, minecraftUuid }),
 };
 
 export const DOWNLOAD_PAGE = "https://launcher.imaginears.club/launcher/download/index.html";
