@@ -28,21 +28,18 @@ pub fn stdout_log() -> Log {
     std::sync::Arc::new(|line: &str| println!("{line}"))
 }
 
-pub const DEFAULT_INCLUDE: &[&str] = &[
-    "mods",
-    "config",
-    "resourcepacks",
-    "shaderpacks",
-    "servers.dat",
-    "options.txt",
-];
+/// `options.txt` and `servers.dat` aren't included: the game writes them for whoever played
+/// the source instance (their settings and server list), and the launcher joins the server
+/// itself. `pack-builder --include` can still add a curated copy (shipped as `default`).
+pub const DEFAULT_INCLUDE: &[&str] = &["mods", "config", "resourcepacks", "shaderpacks"];
 /// Installed once if missing, then the player's: settings and configs they change. This is
 /// also how `config/iris.properties` preselects the club shader without overriding a
 /// player's later choice.
 pub const DEFAULT_DEFAULT_PREFIX: &[&str] = &["config/", "servers.dat", "options.txt"];
 pub const DEFAULT_MANAGED_PREFIX: &[&str] = &[];
-/// Never shipped even if inside an included folder.
-pub const DEFAULT_EXCLUDE: &[&str] = &[];
+/// Never shipped even if inside an included folder. Sodium's fingerprint is a per-install ID
+/// the game writes on launch; it must not become every player's.
+pub const DEFAULT_EXCLUDE: &[&str] = &["config/sodium-fingerprint.json"];
 
 pub struct BuildOptions {
     /// Instance folder (already extracted if it came from a zip).

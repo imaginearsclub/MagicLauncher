@@ -7,6 +7,12 @@ Breaking.
 
 ## [Unreleased]
 
+### Fixed
+- PackPublisher no longer ships `options.txt`, `servers.dat` or Sodium's
+  `config/sodium-fingerprint.json` from the source instance. The game writes them for whoever
+  played that instance, so they would have become every new player's settings, server list
+  and install ID.
+
 ## [0.1.0] - 2026-11-24
 
 First release of MagicLauncher for every Imaginears Club player: Microsoft sign-in, the

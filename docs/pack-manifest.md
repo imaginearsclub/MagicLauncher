@@ -55,9 +55,9 @@ the pack is about the best park experience.
 | `mods/*.jar` | `managed`. Optional ones (shaders, dynamic lights) are `features` (below). |
 | `shaderpacks/*.zip` | `managed`, part of the `shaders` feature. |
 | `config/iris.properties` | `default`: preselects the club shader once; the player's later choice is kept. |
-| `resourcepacks/*.zip` | `managed`. `options.txt` (which packs are on) is `default`. |
+| `resourcepacks/*.zip` | `managed`. |
 | `config/` | `default` (the player's afterwards). |
-| `servers.dat` | `default`, with the Imaginears server listed. |
+| `options.txt`, `servers.dat`, `config/sodium-fingerprint.json` | **Not shipped.** The game writes them for whoever played the source instance (their settings, server list, install ID). The launcher joins the server itself. |
 | Datapacks | **Not shipped.** Datapacks belong to a world; in multiplayer they run on the Paper server, so players don't need them. |
 
 ## Building it
