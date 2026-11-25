@@ -31,8 +31,12 @@ struct AppState {
     usage: Arc<monitoring::Usage>,
     discord: discord::Discord,
     /// The last `imaginears://` action, until the UI takes it (it may not be loaded yet when
-    /// the launcher was started by the link).
+    /// the launcher was started by the link). Only the newest counts: actions are screens to
+    /// show, so an older one is out of date once a newer link arrives.
     pending_link: std::sync::Mutex<Option<deeplink::Action>>,
+    /// A link focused the launcher while a launch was running: don't hide the window when
+    /// the game starts (`close_on_launch`), the player asked to see it.
+    link_during_launch: AtomicBool,
 }
 
 impl AppState {
@@ -77,6 +81,7 @@ fn handle_links(app: &AppHandle, urls: &[tauri::Url]) {
     };
     focus_main(app);
     let state = app.state::<AppState>();
+    state.link_during_launch.store(true, Ordering::SeqCst);
     *state.pending_link.lock().unwrap_or_else(|e| e.into_inner()) = Some(action);
     state.track(
         "deep_link_opened",
@@ -516,6 +521,7 @@ async fn run_pipeline(app: &AppHandle, state: &AppState, session: &Session) -> R
     if state.busy.swap(true, Ordering::SeqCst) {
         return Err(Error::other("already launching"));
     }
+    state.link_during_launch.store(false, Ordering::SeqCst);
     let emitter = app.clone();
     let progress: ProgressFn = Arc::new(move |p: Progress| {
         let _ = emitter.emit("progress", p);
@@ -561,7 +567,7 @@ async fn run_pipeline(app: &AppHandle, state: &AppState, session: &Session) -> R
         });
     }
 
-    if settings.close_on_launch {
+    if settings.close_on_launch && !state.link_during_launch.load(Ordering::SeqCst) {
         if let Some(w) = app.get_webview_window("main") {
             let _ = w.hide();
         }
@@ -652,11 +658,14 @@ pub fn run() {
                 pending_update: Mutex::new(None),
                 last_crash_log: std::sync::Mutex::new(None),
                 pending_link: std::sync::Mutex::new(None),
+                link_during_launch: AtomicBool::new(false),
             });
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
                 // Installers register `imaginears://` (NSIS, .deb/.rpm, macOS bundle). The
-                // AppImage and dev builds aren't installed, so they register it themselves.
+                // AppImage and Windows/Linux dev builds aren't installed, so they register it
+                // themselves. macOS can't register at runtime: there links only reach a built
+                // app bundle (`pnpm tauri build --debug`), not `pnpm tauri dev`.
                 #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
                 if let Err(e) = app.deep_link().register_all() {
                     eprintln!("couldn't register imaginears:// links: {e}");

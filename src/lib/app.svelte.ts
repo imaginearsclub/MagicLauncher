@@ -117,10 +117,12 @@ class AppState {
         this.notice = null;
         this.refreshHome();
       }),
-      onDeepLink(() => this.openDeepLink()),
     ];
-    // The launcher may have been started by a link before this UI was listening.
-    this.openDeepLink();
+    // Take the waiting action only once the listener is registered: a link that arrives in
+    // between would otherwise emit to nobody and wait until the next link.
+    const deepLink = onDeepLink(() => this.openDeepLink());
+    unlisten.push(deepLink);
+    deepLink.then(() => this.openDeepLink());
     (async () => {
       this.info = await api.appInfo();
       this.settings = await api.getSettings();

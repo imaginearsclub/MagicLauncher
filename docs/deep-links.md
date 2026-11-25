@@ -17,7 +17,8 @@ action (path, query) is ignored.
 - **Windows**: the installer (per user, `HKCU\Software\Classes\imaginears`). Dev builds
   (`pnpm tauri dev`) register themselves on start, pointing the scheme at the dev exe until the
   launcher is installed or updated again.
-- **macOS**: the app bundle's `Info.plist`.
+- **macOS**: the app bundle's `Info.plist`. macOS can't register a scheme at runtime, so
+  `pnpm tauri dev` doesn't get links; test with a built bundle (`pnpm tauri build --debug`).
 - **Linux**: the `.deb`/`.rpm` desktop entry; the AppImage registers itself on start.
 
 Players on 0.1.0 get the scheme with the update that adds it.
