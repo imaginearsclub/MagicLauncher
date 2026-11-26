@@ -83,7 +83,9 @@ Decisions are recorded here so they don't have to be re-asked. Full plan (2026-1
 - [x] Verify the Minecraft account on the website (`imaginears://link/<token>`, #14). Pulled
       forward from 0.5 MagicPass: the website starts the flow, so no device/OAuth flow needed
 - [x] Account menu above the server card (#15); PackPublisher skips player files (#12)
-- [ ] Release `v0.2.0`: tag, publish the draft, then add the website buttons
+- [x] Release `v0.2.0` (2026-11-26): tagged and published; all launcher feeds on 0.2.0
+- [ ] Website buttons ("Open in launcher", "Verify with MagicLauncher") in imaginears-web;
+      snippet in [deep-links.md](deep-links.md)
 
 ## Later minors
 - 0.3 Showtimes & Parks (StatusPage public JSON; no website API key in the app)
