@@ -38,6 +38,13 @@ is 40 lowercase hex characters; a link with anything else just opens the launche
    (the call the game makes when joining a server), then calls
    `POST {WEBSITE_URL}/api/minecraft/link/complete`. The website checks Mojang's `hasJoined`.
 
+**Account recovery.** Staff can send the same kind of link to a locked-out player. The website's
+challenge reply then says `"purpose": "recovery"`, and the launcher asks **"Prove you own this
+account?"** instead: completing it only proves the player owns the Minecraft account already
+linked to that website account. Nothing is linked or changed, and a different Minecraft account
+gets a clear "this isn't the linked account" message. Without the field (an older website) the
+launcher treats it as a normal link.
+
 The Minecraft access token only goes to Mojang. The website origin is built in
 (`launcher_core::config::WEBSITE_URL`, default `https://imaginears.club`) and never taken from
 the link. To test against a local site, build with `MAGIC_WEBSITE_URL=http://localhost:3000`.

@@ -5,6 +5,11 @@
 //! joining a server) and tells the website, which asks Mojang `hasJoined` to prove the player
 //! owns the account. The Minecraft access token only ever goes to Mojang.
 //!
+//! The same flow also serves **account recovery**: staff send a link whose challenge says
+//! `"purpose": "recovery"`, and completing it only proves the player owns the Minecraft account
+//! already verified on that website account. The website never changes the link then; the
+//! launcher only words the prompt and messages differently.
+//!
 //! Contract: imaginears-web `docs/minecraft-account-linking.md`.
 
 use crate::auth::Session;
@@ -33,12 +38,25 @@ fn client() -> &'static reqwest::Client {
     })
 }
 
+/// Why the website sent the link.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Purpose {
+    /// Link the signed-in Minecraft account to the website account (the player's own request).
+    #[default]
+    Link,
+    /// Prove the player owns the Minecraft account already linked to the website account,
+    /// for staff account recovery. Nothing is linked or changed.
+    Recovery,
+}
+
 /// What the confirmation prompt shows about the website side of the link.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Challenge {
     /// Display name of the website account the token belongs to.
     pub website_account: String,
     pub expires_in_seconds: u64,
+    pub purpose: Purpose,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -50,6 +68,18 @@ struct WebsiteReply {
     website_account: Option<String>,
     expires_in_seconds: Option<u64>,
     minecraft_name: Option<String>,
+    /// Absent on older websites, and unknown values (a newer website) read as `Link`.
+    #[serde(default, deserialize_with = "purpose_or_link")]
+    purpose: Purpose,
+}
+
+fn purpose_or_link<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> std::result::Result<Purpose, D::Error> {
+    Ok(match Option::<String>::deserialize(d)?.as_deref() {
+        Some("recovery") => Purpose::Recovery,
+        _ => Purpose::Link,
+    })
 }
 
 /// A token is exactly 40 lowercase hex characters (the shape of a Minecraft `serverId`).
@@ -71,8 +101,11 @@ fn check_token(token: &str) -> Result<()> {
 }
 
 /// The player-facing message for a failed website reply.
-fn failure_message(status: u16, code: Option<&str>) -> String {
+fn failure_message(status: u16, code: Option<&str>, purpose: Purpose) -> String {
     match code {
+        Some("not_verified") if purpose == Purpose::Recovery => {
+            "This isn't the Minecraft account linked to that website account, or Mojang couldn't confirm it. Sign in to the launcher with the linked account and ask staff for a new link.".into()
+        }
         Some("invalid_or_expired") => {
             "This link has expired or was already used. Start again from the website.".into()
         }
@@ -86,6 +119,9 @@ fn failure_message(status: u16, code: Option<&str>) -> String {
             "Mojang's servers didn't respond. Try again in a minute.".into()
         }
         _ if status == 429 => "Too many attempts. Wait a minute and try again.".into(),
+        _ if purpose == Purpose::Recovery => {
+            format!("The website couldn't check your account (error {status}).")
+        }
         _ => format!("The website couldn't link your account (error {status})."),
     }
 }
@@ -102,24 +138,34 @@ pub(crate) fn challenge_from_reply(status: u16, body: &str) -> Result<Challenge>
             ok: true,
             website_account: Some(website_account),
             expires_in_seconds,
+            purpose,
             ..
         } if status == 200 => Ok(Challenge {
             website_account,
             expires_in_seconds: expires_in_seconds.unwrap_or(0),
+            purpose,
         }),
-        reply => Err(Error::other(failure_message(status, reply.code.as_deref()))),
+        reply => Err(Error::other(failure_message(
+            status,
+            reply.code.as_deref(),
+            Purpose::Link,
+        ))),
     }
 }
 
 /// Turns the website's completion reply into the verified Minecraft name.
-pub(crate) fn linked_name_from_reply(status: u16, body: &str) -> Result<String> {
+pub(crate) fn linked_name_from_reply(status: u16, body: &str, purpose: Purpose) -> Result<String> {
     match parse_reply(body) {
         WebsiteReply {
             ok: true,
             minecraft_name: Some(name),
             ..
         } if status == 200 => Ok(name),
-        reply => Err(Error::other(failure_message(status, reply.code.as_deref()))),
+        reply => Err(Error::other(failure_message(
+            status,
+            reply.code.as_deref(),
+            purpose,
+        ))),
     }
 }
 
@@ -161,9 +207,10 @@ async fn session_join(session: &Session, server_id: &str) -> Result<()> {
 /// used up by then, so a retry would only report it as expired.
 const REPLY_LOST: &str = "Couldn't hear back from the website. Check Profile > Connections on the      website: if your account shows Verified, you're done. Otherwise start again there.";
 
-/// Proves ownership of the signed-in account to the website and links it. Uses the token up.
-/// Call only after the player confirmed the prompt.
-pub async fn link(session: &Session, token: &str) -> Result<String> {
+/// Proves ownership of the signed-in account to the website: links it, or for `Recovery` only
+/// proves it. Uses the token up. Call only after the player confirmed the prompt.
+/// `purpose` (from `challenge`) only changes the wording of errors.
+pub async fn link(session: &Session, token: &str, purpose: Purpose) -> Result<String> {
     check_token(token)?;
     session_join(session, token).await?;
     let res = client()
@@ -174,7 +221,7 @@ pub async fn link(session: &Session, token: &str) -> Result<String> {
         .map_err(|_| Error::other(REPLY_LOST))?;
     let status = res.status().as_u16();
     let body = res.text().await.map_err(|_| Error::other(REPLY_LOST))?;
-    linked_name_from_reply(status, &body)
+    linked_name_from_reply(status, &body, purpose)
 }
 
 #[cfg(test)]
@@ -206,7 +253,8 @@ mod tests {
             ok,
             Challenge {
                 website_account: "Walt".into(),
-                expires_in_seconds: 540
+                expires_in_seconds: 540,
+                purpose: Purpose::Link,
             }
         );
 
@@ -220,22 +268,61 @@ mod tests {
 
     #[test]
     fn completion_reply() {
-        let name = linked_name_from_reply(200, r#"{"ok":true,"minecraftName":"Notch"}"#).unwrap();
+        let name =
+            linked_name_from_reply(200, r#"{"ok":true,"minecraftName":"Notch"}"#, Purpose::Link)
+                .unwrap();
         assert_eq!(name, "Notch");
 
-        let taken = linked_name_from_reply(409, r#"{"ok":false,"code":"already_linked"}"#);
+        let taken = linked_name_from_reply(
+            409,
+            r#"{"ok":false,"code":"already_linked"}"#,
+            Purpose::Link,
+        );
         assert!(taken
             .unwrap_err()
             .to_string()
             .contains("another website account"));
 
-        let limited = linked_name_from_reply(429, r#"{"error":"Too many requests"}"#);
+        let limited =
+            linked_name_from_reply(429, r#"{"error":"Too many requests"}"#, Purpose::Link);
         assert!(limited
             .unwrap_err()
             .to_string()
             .contains("Too many attempts"));
 
         // "ok" without a name is not a success.
-        assert!(linked_name_from_reply(200, r#"{"ok":true}"#).is_err());
+        assert!(linked_name_from_reply(200, r#"{"ok":true}"#, Purpose::Link).is_err());
+    }
+
+    #[test]
+    fn challenge_purpose() {
+        let reply = |purpose: &str| {
+            challenge_from_reply(
+                200,
+                &format!(
+                    r#"{{"ok":true,"websiteAccount":"Walt","expiresInSeconds":540,"purpose":"{purpose}"}}"#
+                ),
+            )
+            .unwrap()
+            .purpose
+        };
+        assert_eq!(reply("recovery"), Purpose::Recovery);
+        assert_eq!(reply("link"), Purpose::Link);
+        // Unknown purposes (a newer website) are treated as a normal link.
+        assert_eq!(reply("something-new"), Purpose::Link);
+    }
+
+    #[test]
+    fn recovery_mismatch_message() {
+        let body = r#"{"ok":false,"code":"not_verified"}"#;
+        let recovery = linked_name_from_reply(403, body, Purpose::Recovery)
+            .unwrap_err()
+            .to_string();
+        assert!(recovery.contains("isn't the Minecraft account linked"));
+
+        let link = linked_name_from_reply(403, body, Purpose::Link)
+            .unwrap_err()
+            .to_string();
+        assert!(link.contains("Mojang couldn't confirm"));
     }
 }

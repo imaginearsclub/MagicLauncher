@@ -97,6 +97,8 @@ struct LinkPrompt {
     /// Passed back to `link_confirm`, so it links exactly the account the player saw.
     minecraft_uuid: String,
     expires_in_seconds: u64,
+    /// `link`, or `recovery` when staff asked the player to prove ownership.
+    purpose: website_link::Purpose,
 }
 
 /// Details for the prompt after an `imaginears://link/<token>` link. Changes nothing.
@@ -109,6 +111,7 @@ async fn link_prompt(state: State<'_, AppState>, token: String) -> Result<LinkPr
         minecraft_name: session.profile.name,
         minecraft_uuid: session.profile.uuid,
         expires_in_seconds: challenge.expires_in_seconds,
+        purpose: challenge.purpose,
     })
 }
 
@@ -120,6 +123,7 @@ async fn link_confirm(
     state: State<'_, AppState>,
     token: String,
     minecraft_uuid: String,
+    purpose: Option<website_link::Purpose>,
 ) -> Result<String> {
     let session = active_session(&state).await?;
     if session.profile.uuid != minecraft_uuid {
@@ -127,7 +131,7 @@ async fn link_confirm(
             "The signed-in Minecraft account changed. Start again from the website.",
         ));
     }
-    let result = website_link::link(&session, &token).await;
+    let result = website_link::link(&session, &token, purpose.unwrap_or_default()).await;
     state.track(
         "website_link",
         serde_json::json!({ "ok": result.is_ok(), "error": result.as_ref().err().map(|e| e.category()) }),

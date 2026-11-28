@@ -5,6 +5,13 @@
   // Any web page can send an imaginears://link/… link, including one made with someone
   // else's website account, so the player always sees both names and confirms.
   const d = $derived(app.linkDialog);
+  // Staff account recovery: proves the player owns the account already linked; links nothing.
+  function purposeOf(dialog: typeof d) {
+    if (!dialog || dialog.step === "loading") return "link";
+    if ("prompt" in dialog) return dialog.prompt.purpose;
+    return dialog.purpose ?? "link";
+  }
+  const recovery = $derived(purposeOf(d) === "recovery");
 </script>
 
 {#if d}
@@ -20,6 +27,30 @@
       {#if d.step === "loading"}
         <h2 id="link-title">Link your Minecraft account</h2>
         <p class="muted">Checking the link with the website…</p>
+      {:else if (d.step === "confirm" || d.step === "linking") && recovery}
+        <h2 id="link-title">Prove you own this account?</h2>
+        <dl class="link-names">
+          <dt>Minecraft account</dt>
+          <dd><strong>{d.prompt.minecraft_name}</strong></dd>
+          <dt>Website account</dt>
+          <dd><strong>{d.prompt.website_account}</strong></dd>
+        </dl>
+        <p>
+          Imaginears Club staff asked you to prove that you own <strong>{d.prompt.minecraft_name}</strong>, the
+          Minecraft account linked to that website account, so they can help you get back into it. Nothing is
+          linked or changed.
+        </p>
+        <p class="muted small">
+          Only continue if Imaginears Club staff sent you this link, for example in your support ticket. Your
+          Minecraft login is only sent to Mojang, never to the website. If this isn't the linked Minecraft account,
+          cancel, switch accounts, and ask staff for a new link.
+        </p>
+        <div class="row center">
+          <button class="secondary" onclick={() => app.closeLink()} disabled={d.step === "linking"}>Cancel</button>
+          <button class="primary" onclick={() => app.confirmLink()} disabled={d.step === "linking"}>
+            {d.step === "linking" ? "Checking…" : "Prove ownership"}
+          </button>
+        </div>
       {:else if d.step === "confirm" || d.step === "linking"}
         <h2 id="link-title">Link your Minecraft account?</h2>
         <dl class="link-names">
@@ -43,6 +74,15 @@
             {d.step === "linking" ? "Linking…" : "Link account"}
           </button>
         </div>
+      {:else if d.step === "done" && recovery}
+        <h2 id="link-title">Ownership confirmed</h2>
+        <p role="status">
+          The website confirmed you own <strong>{d.minecraftName}</strong>. Let staff know in your support ticket so
+          they can continue.
+        </p>
+        <div class="row center">
+          <button class="primary" onclick={() => app.closeLink()}>Done</button>
+        </div>
       {:else if d.step === "done"}
         <h2 id="link-title">Account linked</h2>
         <p role="status">
@@ -53,7 +93,7 @@
           <button class="primary" onclick={() => app.closeLink()}>Done</button>
         </div>
       {:else if d.step === "error"}
-        <h2 id="link-title">Couldn't link your account</h2>
+        <h2 id="link-title">{recovery ? "Couldn't confirm your account" : "Couldn't link your account"}</h2>
         <p class="error" role="alert">{d.message}</p>
         <div class="row center">
           <button class="secondary" onclick={() => app.closeLink()}>Close</button>

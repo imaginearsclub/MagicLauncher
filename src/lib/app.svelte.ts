@@ -56,8 +56,8 @@ export type View = "play" | "mods";
 export type LinkDialog =
   | { step: "loading" }
   | { step: "confirm" | "linking"; token: string; prompt: LinkPrompt }
-  | { step: "done"; minecraftName: string }
-  | { step: "error"; message: string; signIn: boolean };
+  | { step: "done"; minecraftName: string; purpose: LinkPrompt["purpose"] }
+  | { step: "error"; message: string; signIn: boolean; purpose?: LinkPrompt["purpose"] };
 
 class AppState {
   // ---- data from the launcher ----
@@ -340,10 +340,13 @@ class AppState {
     const request = this.linkRequest;
     this.linkDialog = { ...d, step: "linking" };
     try {
-      const minecraftName = await api.linkConfirm(d.token, d.prompt.minecraft_uuid);
-      if (request === this.linkRequest) this.linkDialog = { step: "done", minecraftName };
+      const { purpose } = d.prompt;
+      const minecraftName = await api.linkConfirm(d.token, d.prompt.minecraft_uuid, purpose);
+      if (request === this.linkRequest) this.linkDialog = { step: "done", minecraftName, purpose };
     } catch (e) {
-      if (request === this.linkRequest) this.linkDialog = { step: "error", message: String(e), signIn: false };
+      if (request === this.linkRequest) {
+        this.linkDialog = { step: "error", message: String(e), signIn: false, purpose: d.prompt.purpose };
+      }
     }
   }
 
