@@ -7,6 +7,13 @@ Breaking.
 
 ## [Unreleased]
 
+### Added
+- Account recovery links: when Imaginears Club staff send a player a recovery link, the launcher
+  asks **"Prove you own this account?"** instead of "Link your Minecraft account?", and the
+  messages say the account is only being checked, not linked. A different Minecraft account
+  gets a clear "this isn't the linked account" message. Works with the website's
+  `purpose: "recovery"` challenge; older websites behave as before.
+
 ## [0.2.0] - 2026-11-25
 
 Website links: the launcher now opens `imaginears://` links, so the Imaginears Club website
